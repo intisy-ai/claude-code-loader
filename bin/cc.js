@@ -23,9 +23,9 @@ function setupEnv() {
   const isWin = process.platform === "win32";
   
   if (isWin) {
-    if (process.env.ANTHROPIC_API_KEY !== "antigravity-dummy-key") {
-      execSync('setx ANTHROPIC_API_KEY "antigravity-dummy-key"', { stdio: "ignore" });
-      process.env.ANTHROPIC_API_KEY = "antigravity-dummy-key";
+    if (process.env.ANTHROPIC_API_KEY !== "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000") {
+      execSync('setx ANTHROPIC_API_KEY "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000"', { stdio: "ignore" });
+      process.env.ANTHROPIC_API_KEY = "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000";
       console.log("[\x1b[36mcc\x1b[0m] Set ANTHROPIC_API_KEY globally.");
     }
     if (process.env.ANTHROPIC_BASE_URL !== "http://127.0.0.1:8080") {
@@ -35,7 +35,7 @@ function setupEnv() {
     }
   } else {
     // Basic Unix fallback (would need shell rc editing for persistence)
-    process.env.ANTHROPIC_API_KEY = "antigravity-dummy-key";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000";
     process.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:8080";
   }
 }
