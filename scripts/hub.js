@@ -55,8 +55,10 @@ function installCcCommand() {
       + 'set "tmp=%TEMP%\\cc-output-%RANDOM%.tmp"\r\n'
       + 'set "CC_OUTPUT=%tmp%"\r\n'
       + 'node "' + tuiScript + '" %*\r\n'
-      + 'set /p dir=<"%tmp%" 2>nul\r\n'
-      + 'del "%tmp%" 2>nul\r\n'
+      + 'if exist "%tmp%" (\r\n'
+      + '  set /p dir=<"%tmp%"\r\n'
+      + '  del "%tmp%" 2>nul\r\n'
+      + ')\r\n'
       + 'if defined dir (\r\n'
       + '  cd /d "%dir%" && claude\r\n'
       + ')\r\n';
