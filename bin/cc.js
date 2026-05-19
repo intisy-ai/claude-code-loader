@@ -24,12 +24,12 @@ function setupEnv() {
   
   if (isWin) {
     if (process.env.ANTHROPIC_API_KEY !== "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000") {
-      execSync('setx ANTHROPIC_API_KEY "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000"', { stdio: "ignore" });
+      spawn("setx",  ANTHROPIC_API_KEY "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000"', { stdio: "ignore" });
       process.env.ANTHROPIC_API_KEY = "sk-ant-api03-antigravity-dummy-key-000000000000000000000000000000";
       console.log("[\x1b[36mcc\x1b[0m] Set ANTHROPIC_API_KEY globally.");
     }
     if (process.env.ANTHROPIC_BASE_URL !== "http://127.0.0.1:8080") {
-      execSync('setx ANTHROPIC_BASE_URL "http://127.0.0.1:8080"', { stdio: "ignore" });
+      spawn("setx",  ANTHROPIC_BASE_URL "http://127.0.0.1:8080"', { stdio: "ignore" });
       process.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:8080";
       console.log("[\x1b[36mcc\x1b[0m] Set ANTHROPIC_BASE_URL globally.");
     }

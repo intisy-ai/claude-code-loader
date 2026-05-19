@@ -957,8 +957,8 @@ function handleProjectKey(key) {
       if (items.length > 0) { mode = "actions"; acursor = 0; }
     }
     else if (key === "o") { if (items.length > 0) openProject(items[cursor]); }
-    else if (key === "e") { cleanup(); try { (await import("child_process")).execSync("cursor "" + (items.length > 0 ? items[cursor].dir : process.cwd()) + """, { stdio: "ignore", windowsHide: true }); } catch(err){} process.exit(0); }
-      else if (key === ",") { cleanup(); try { (await import("child_process")).execSync("cursor .", { stdio: "ignore", windowsHide: true }); } catch(err){} process.exit(0); }
+    else if (key === "e") { cleanup(); try { execSync("cursor "" + (items.length > 0 ? items[cursor].dir : process.cwd()) + """, { stdio: "ignore", windowsHide: true }); } catch(err){} process.exit(0); }
+      else if (key === ",") { cleanup(); try { execSync("cursor .", { stdio: "ignore", windowsHide: true }); } catch(err){} process.exit(0); }
       else if (key === "p") { if (items.length > 0) togglePin(cursor); }
     else if (key === ".") { cleanup(); outputDir(process.cwd()); process.exit(0); }
       else if (key === "h") { if (items.length > 0) hideItem(cursor); }
