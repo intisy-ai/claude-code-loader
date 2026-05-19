@@ -60,10 +60,21 @@ function discoverProjects() {
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const outPath = process.env.CC_OUTPUT;
+
+  // If the user passed explicit arguments (like --help or -p), skip the TUI 
+  // and launch Claude in the current directory immediately.
+  if (args.length > 0) {
+    if (outPath) writeFileSync(outPath, process.cwd(), "utf-8");
+    process.exit(0);
+  }
+
   const projects = discoverProjects();
 
   if (projects.length === 0) {
-    console.log("No projects found. Run 'claude' in a project directory first.");
+    console.log("[\x1b[36mcc\x1b[0m] No previous projects found. Launching Claude in current directory...");
+    if (outPath) writeFileSync(outPath, process.cwd(), "utf-8");
     process.exit(0);
   }
 
