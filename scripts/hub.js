@@ -49,6 +49,9 @@ function installCcCommand() {
   if (process.platform === "win32") {
     const cmdPath = join(binDir, "cc.cmd");
     const cmdContent = '@echo off\r\n'
+      + ':: Seamless Antigravity Proxy Integration\r\n'
+      + 'set "PROXY=%USERPROFILE%\\.claude\\repos\\intisy\\claude-antigravity-auth\\scripts\\proxy.js"\r\n'
+      + 'if exist "%PROXY%" ( start /b /min node "%PROXY%" >nul 2>&1 )\r\n'
       + 'set "tmp=%TEMP%\\cc-output-%RANDOM%.tmp"\r\n'
       + 'set "CC_OUTPUT=%tmp%"\r\n'
       + 'node "' + tuiScript + '" %*\r\n'
@@ -61,6 +64,9 @@ function installCcCommand() {
   } else {
     const shPath = join(binDir, "cc");
     const shContent = '#!/bin/sh\n'
+      + '# Seamless Antigravity Proxy Integration\n'
+      + 'PROXY="$HOME/.claude/repos/intisy/claude-antigravity-auth/scripts/proxy.js"\n'
+      + '[ -f "$PROXY" ] && node "$PROXY" >/dev/null 2>&1 &\n'
       + 'tmp=$(mktemp)\n'
       + 'CC_OUTPUT="$tmp" node "' + tuiScript.replace(/\\/g, "\\\\") + '" "$@"\n'
       + 'dir=$(cat "$tmp" 2>/dev/null)\n'
