@@ -20,6 +20,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "bin": {
+    "cc": "./bin/cc.js"
+  },
   "files": [
     ".claude-plugin/",
     "hooks/",
