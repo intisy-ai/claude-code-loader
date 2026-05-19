@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, unlinkSync, readdirSync, statSync } from "fs";
 import { execSync } from "child_process";
 import { join, dirname } from "path";
 import { homedir } from "os";
 
 var HOME = homedir();
-var CONFIG_DIR = join(HOME, ".config", "claude");
+var CONFIG_DIR = join(HOME, ".claude");
 var DB_PATH = join(HOME, ".local", "share", "claude", "claude.db");
 var CONFIG_FOLDER = join(CONFIG_DIR, "config");
 var CACHE_DIR = join(CONFIG_DIR, "cache");
@@ -99,13 +99,13 @@ function checkForUpdates() {
     if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
     writeFileSync(UPDATE_CHECK_PATH, String(Date.now()));
 
-    var installed = execSync("claude --version", { encoding: "utf-8", timeout: 10000 }).trim();
-    var latest = execSync("npm view claude-ai version", { encoding: "utf-8", timeout: 15000 }).trim();
-
-    if (!latest || !installed || latest === installed) return;
-
-    process.stderr.write("\x1b[33m  > Updating Claude Code: " + installed + " -> " + latest + "\x1b[0m\n");
-    execSync("npm install -g claude-ai@latest", { stdio: "inherit", timeout: 120000 });
+      var installed = execSync("claude --version", { encoding: "utf-8", timeout: 10000 }).trim();
+      var latest = execSync("npm view @anthropic-ai/claude-code version", { encoding: "utf-8", timeout: 15000 }).trim();
+  
+      if (!latest || !installed || latest === installed) return;
+  
+      process.stderr.write("\x1b[33m  > Updating Claude Code: " + installed + " -> " + latest + "\x1b[0m\n");
+      execSync("npm install -g @anthropic-ai/claude-code@latest", { stdio: "inherit", timeout: 120000 });
     process.stderr.write("\x1b[32m  > Updated to " + latest + "\x1b[0m\n\n");
   } catch (e) {}
 }
@@ -131,16 +131,26 @@ function saveConfig(cfg) {
 }
 
 function queryProjects() {
-  if (!existsSync(DB_PATH)) return [];
   try {
-    var db = new Database(DB_PATH, { readonly: true });
-    var rows = db.query(
-      "SELECT directory, MAX(time_updated) as last_used, COUNT(*) as sessions " +
-      "FROM session WHERE parent_id IS NULL GROUP BY directory ORDER BY last_used DESC LIMIT 30"
-    ).all();
-    db.close();
-    return rows;
-  } catch { return []; }
+    var cacheDir = join(homedir(), "AppData", "Local", "claude-cli-nodejs", "Cache");
+    if (!existsSync(cacheDir)) return [];
+    var dirs = readdirSync(cacheDir, { withFileTypes: true })
+      .filter(function(d) { return d.isDirectory(); })
+      .map(function(d) {
+        var stat = statSync(join(cacheDir, d.name));
+        // Parse "C--Users-..." back to "C:\Users\..."
+        var path = d.name.replace(/^([A-Z])--/, "$1:\\").replace(/--/g, "\\").replace(/-/g, "\\");
+        return {
+          directory: path,
+          last_used: stat.mtimeMs,
+          sessions: 1
+        };
+      });
+    dirs.sort(function(a, b) { return b.last_used - a.last_used; });
+    return dirs.slice(0, 30);
+  } catch (e) {
+    return [];
+  }
 }
 
 function timeAgo(ts) {
@@ -232,15 +242,17 @@ function gitText(args, cwd) {
   } catch { return ""; }
 }
 
-function buildPluginList() {
-  var plugins = loadPlugins();
-  var list = [];
-  for (var p of plugins) {
-    var folderName = getFolderName(p);
-    var dir = join(REPOS_DIR, folderName);
-    var installed = existsSync(dir);
-    var deployed = existsSync(join(PLUGINS_DIR, p.pluginFile));
-    var localHead = "";
+  function buildPluginList() {
+    var plugins = loadPlugins();
+    var list = [];
+    for (var p of plugins) {
+      if (!p || !p.name) continue;
+      var folderName = getFolderName(p);
+      if (!folderName) continue;
+      var dir = join(REPOS_DIR, folderName);
+      var installed = existsSync(dir);
+      var deployed = installed; // Deployed state matches installed state for npm-managed plugins
+      var localHead = "";
     var remoteHead = "";
     var subject = "";
     var updateAvail = false;
@@ -331,16 +343,11 @@ function runPluginUpdate(pluginItem) {
     catch (e) { return "Bundle failed"; }
   }
 
-  var outputPath = join(dir, repo.output);
-  var destPath = join(PLUGINS_DIR, repo.pluginFile);
-
-  if (!existsSync(PLUGINS_DIR)) try { mkdirSync(PLUGINS_DIR, { recursive: true }); } catch {}
-
-  if (existsSync(outputPath)) {
-    try { copyFileSync(outputPath, destPath); }
-    catch (e) { return "Copy failed"; }
-  } else {
-    return "Build output not found: " + repo.output;
+  // Claude Code plugins are NPM packages, deploy by global install
+  try {
+    execSync("npm install -g .", { cwd: dir, timeout: 120000, stdio: "ignore" });
+  } catch (e) {
+    return "NPM install failed";
   }
 
   return null; // success
@@ -626,7 +633,8 @@ function buildProjects(pushBody, pushFoot, cols, barW) {
     pushBody("", false);
     
     pushFoot("  " + GRAY + "-".repeat(barW) + RST);
-    pushFoot("  " + GRAY + "Q" + RST + " Quit  " + GRAY + "U" + RST + " Unhide all");
+    pushFoot("  " + DIM + "." + RST + " Launch here  " + DIM + "E/," + RST + " Cursor here  " + DIM + "C" + RST + " Custom path");
+    pushFoot("  " + DIM + "Q" + RST + " Quit  " + DIM + "U" + RST + " Unhide all");
     return;
   }
 
@@ -1027,15 +1035,14 @@ function handlePluginKey(key) {
         flash(err ? p.name + ": " + err : p.name + " updated. Restart Claude Code to apply.");
       }
     }
-    else if (key === "d") {
-      if (pluginItems.length > 0 && pluginItems[pcursor].type !== "npm") {
-        var p = pluginItems[pcursor];
-        var plugins = loadPlugins();
-        var match = plugins.find(function(r) { return r.name === p.name; });
-        if (match) { match.enabled = false; savePlugins(plugins); }
-        var deployedPath = join(PLUGINS_DIR, p.pluginFile);
-        if (existsSync(deployedPath)) { try { unlinkSync(deployedPath); } catch {} }
-        pluginItems = buildCombinedPluginList();
+      else if (key === "d") {
+        if (pluginItems.length > 0 && pluginItems[pcursor].type !== "npm") {
+          var p = pluginItems[pcursor];
+          var plugins = loadPlugins();
+          var match = plugins.find(function(r) { return r.name === p.name; });
+          if (match) { match.enabled = false; savePlugins(plugins); }
+          try { execSync("npm uninstall -g " + p.name, { stdio: "ignore" }); } catch {}
+          pluginItems = buildCombinedPluginList();
         if (pcursor >= pluginItems.length) pcursor = Math.max(0, pluginItems.length - 1);
         flash(p.name + " disabled. Restart Claude Code to unload.");
       }
