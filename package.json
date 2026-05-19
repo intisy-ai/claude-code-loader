@@ -1,6 +1,6 @@
 {
-  "name": "claude-hub",
-  "version": "1.0.2",
+  "name": "@intisy/claude-hub",
+  "version": "1.0.0",
   "description": "Session launcher, project switcher, and plugin manager for Claude Code",
   "type": "module",
   "license": "MIT",
