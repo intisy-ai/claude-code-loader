@@ -44,7 +44,7 @@ function installCcCommand() {
   const binDir = getBinDir();
   if (!existsSync(binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
 
-  const tuiScript = join(getPluginRoot(), "scripts", "cc-tui.js");
+  const tuiScript = join(getPluginRoot(), "scripts", "../core/tui.js");
 
   if (process.platform === "win32") {
     const cmdPath = join(binDir, "cc.cmd");

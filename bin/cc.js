@@ -66,18 +66,34 @@ installPlugins();
 setupEnv();
 
 // 3. Start proxy immediately if antigravity is installed (to be safe for this session)
-const proxyScript = join(REPOS_DIR, "intisy", "claude-antigravity-auth", "scripts", "proxy.js");
+const proxyScript = join(REPOS_DIR, "intisy", "claude-antigravity-auth", "scripts", "proxy.ts");
 if (existsSync(proxyScript)) {
-  // Spawn completely detached so it never blocks the terminal
-  const child = spawn("node", [proxyScript], {
+  const { openSync } = await import("fs");
+  
+  // Kill any existing proxy to ensure we run the latest code
+  if (process.platform === "win32") {
+    try {
+      execSync('FOR /F "tokens=5" %a IN (\'netstat -aon ^| findstr :8080 ^| findstr LISTENING\') DO taskkill /F /PID %a', { stdio: 'ignore' });
+    } catch (e) {}
+  }
+
+  const out = openSync(join(HOME, 'proxy-spawn.log'), 'a');
+  const err = openSync(join(HOME, 'proxy-spawn.err'), 'a');
+  const child = spawn("bun", ["run", proxyScript], {
     detached: true,
-    stdio: "ignore"
+    stdio: ['ignore', out, err]
   });
   child.unref();
+
+  // Wait 1 second to ensure the proxy binds to port 8080 before Claude Code connects
+  const start = Date.now();
+  while (Date.now() - start < 1000) {
+    // block synchronously to delay the TUI and Claude Code launch
+  }
 }
 
 // 4. Run the TUI
-const tuiScript = join(dirname(__dirname), "scripts", "cc-tui.js");
+const tuiScript = join(dirname(__dirname), "scripts", "core/tui.js");
 try {
   const tmpFile = join(HOME, `.cc-output-${Date.now()}.tmp`);
   process.env.CC_OUTPUT = tmpFile;
