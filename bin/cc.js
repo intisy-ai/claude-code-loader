@@ -79,7 +79,7 @@ if (existsSync(proxyScript)) {
 
   const out = openSync(join(HOME, 'proxy-spawn.log'), 'a');
   const err = openSync(join(HOME, 'proxy-spawn.err'), 'a');
-  const child = spawn("bun", ["run", proxyScript], {
+  const child = spawn("bun", ["run", proxyScript], { shell: true,
     detached: true,
     stdio: ['ignore', out, err]
   });
@@ -93,7 +93,7 @@ if (existsSync(proxyScript)) {
 }
 
 // 4. Run the TUI
-const tuiScript = join(dirname(__dirname), "scripts", "core/tui.js");
+const tuiScript = join(dirname(__dirname), "core", "tui.js");
 try {
   const tmpFile = join(HOME, `.cc-output-${Date.now()}.tmp`);
   process.env.CC_OUTPUT = tmpFile;
@@ -101,7 +101,7 @@ try {
   // Pass command line arguments correctly
   const args = process.argv.slice(2);
   
-  spawnSync("node", [tuiScript, ...args], { stdio: "inherit" });
+  spawnSync("bun", ["run", tuiScript, ...args], { stdio: "inherit", shell: true });
   
   if (existsSync(tmpFile)) {
     const targetDir = readFileSync(tmpFile, "utf-8").trim();
