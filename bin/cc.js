@@ -23,7 +23,7 @@ const defaultPlugins = [
 ];
 
 function setupEnv() {
-  console.log("[\x1b[36mcc\x1b[0m] Ensuring Antigravity environment is configured...");
+  if (!process.argv.includes("--version") && !process.argv.includes("-v") && !process.argv.includes("--help")) { console.log("[\x1b[36mcc\x1b[0m] Ensuring Antigravity environment is configured..."); }
   const isWin = process.platform === "win32";
   
   if (isWin) {
@@ -100,7 +100,7 @@ if (existsSync(proxyScript)) {
 const tuiScript = join(dirname(__dirname), "core", "tui.js");
 try {
   const tmpFile = join(HOME, `.cc-output-${Date.now()}.tmp`);
-  process.env.CC_OUTPUT = tmpFile;
+  process.env.CC_OUTPUT = tmpFile; process.env.HUB_OUTPUT = tmpFile;
   
   // Pass command line arguments correctly
   const args = process.argv.slice(2);
