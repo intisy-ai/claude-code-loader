@@ -62,7 +62,7 @@ function tuiSelect(items, opts = {}) {
 
     function done(result) {
       showCur();
-      try { process.stdin.setRawMode(false); } catch {}
+      try { if (process.stdin.setRawMode) process.stdin.setRawMode(false); } catch {}
       process.stdin.removeListener("data", onKey);
       process.stdin.pause();
       resolve(result);
@@ -97,7 +97,7 @@ function tuiSelect(items, opts = {}) {
       }
     }
 
-    process.stdin.setRawMode(true);
+    if (process.stdin.setRawMode) process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.on("data", onKey);
   });
@@ -582,7 +582,12 @@ try {
   
   // Pass command line arguments correctly (already declared above)
   
-  spawnSync(resolveRuntime("bun"), ["run", tuiScript, ...args], { stdio: "inherit" });
+  const child = spawnSync(resolveRuntime("bun"), ["run", tuiScript, ...args], { stdio: "inherit" });
+  
+  if (child.status === 42) {
+    spawnSync("claude", args, { stdio: "inherit", shell: true });
+    process.exit(0);
+  }
   
   if (existsSync(tmpFile)) {
     const targetDir = readFileSync(tmpFile, "utf-8").trim();
