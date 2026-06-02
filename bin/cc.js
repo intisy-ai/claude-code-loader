@@ -152,7 +152,7 @@ process.env.HUB_APP_NAME = 'Claude Code';
 process.env.HUB_CLI_CMD = 'cc';
 process.env.HUB_NPM_PKG = '@anthropic-ai/claude-code';
 const CLAUDE_DIR = join(HOME, ".claude");
-const REPOS_DIR = join(homedir(), ".config", "github", "repos");
+const REPOS_DIR = join(CLAUDE_DIR, "repos");
 const PLUGINS_JSON = join(CLAUDE_DIR, "config", "plugins.json");
 
 // Read plugins.json to know what the user has actually installed
