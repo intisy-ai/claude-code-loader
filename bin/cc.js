@@ -125,6 +125,7 @@ function ensureCmdWrapper() {
   if (process.platform === "win32") {
     const cmdPath = join(binDir, "cc.cmd");
     const cmdContent = `@echo off\r\n` +
+      `cd /d "%USERPROFILE%"\r\n` +
       `node "${repoJsPath}" %*\r\n`;
     try {
       if (!existsSync(cmdPath) || readFileSync(cmdPath, "utf-8") !== cmdContent) {
@@ -454,10 +455,19 @@ if (firstArg === "auth" && args[1] === "login") {
     process.exit(0);
   }
   
-  // If user selected "Claude Code (Official)" (index 0), we bypass the plugin logic
-  // and fall through to let cc.js spawn the native CLI at the bottom of the script.
+  // If user selected "Claude Code (Official)" (index 0), run our custom TUI auth manager
   if (idx === 0) {
-    // Break out of the custom auth handler block to run the native CLI
+    const ccAuthPath = join(dirname(fileURLToPath(import.meta.url)), "..", "core", "cc-auth.js");
+    spawnSync("node", [ccAuthPath], { stdio: "inherit", shell: true });
+    
+    // Sync accounts after login
+    console.log("[\x1b[36mcc\x1b[0m] Syncing accounts across all locations...");
+    try {
+      const result = await syncAccounts();
+      console.log(`[\x1b[32mcc\x1b[0m] Synced ${result.count} accounts (source: ${result.source}).`);
+    } catch (e) {}
+    
+    process.exit(0);
   } else {
     // A plugin provider was selected (idx - 1)
     chosen = providers[idx - 1];
@@ -579,7 +589,7 @@ if (firstArg && !firstArg.startsWith('-') && existsSync(firstArg)) {
 const tuiScript = join(dirname(__dirname), "core", "tui.js");
 try {
   const tmpFile = join(HOME, `.cc-output-${Date.now()}.tmp`);
-  process.env.CC_OUTPUT = tmpFile; process.env.HUB_OUTPUT = tmpFile;
+  process.env.CC_OUTPUT = tmpFile; process.env.HUB_OUTPUT = tmpFile; process.env.CC_LAUNCHER = "1";
   
   // Pass command line arguments correctly (already declared above)
   
