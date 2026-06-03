@@ -2,6 +2,7 @@
   "name": "@intisy/claude-hub",
   "version": "1.0.1",
   "description": "Session launcher, project switcher, and plugin manager for Claude Code",
+  "main": "plugin.js",
   "type": "module",
   "license": "MIT",
   "author": "intisy",
@@ -20,10 +21,10 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "bin": {
-    "cc": "bin/cc.js"
-  },
   "files": [
+    "plugin.js",
+    "cc-tui.js",
+    "tui-extension.js",
     ".claude-plugin/",
     "hooks/",
     "commands/",

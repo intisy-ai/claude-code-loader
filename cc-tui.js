@@ -294,7 +294,7 @@ setupEnv();
 
 // 3a. Start the hub proxy (thin reverse proxy that routes to plugin backends)
 async function startHubProxy() {
-  const hubProxyScript = join(dirname(__dirname), "core", "hub-proxy.js");
+  const hubProxyScript = join(dirname(fileURLToPath(import.meta.url)), "core", "hub-proxy.js");
   if (!existsSync(hubProxyScript)) return;
 
   // Check if already running
@@ -457,7 +457,7 @@ if (firstArg === "auth" && args[1] === "login") {
   
   // If user selected "Claude Code (Official)" (index 0), run our custom TUI auth manager
   if (idx === 0) {
-    const ccAuthPath = join(dirname(fileURLToPath(import.meta.url)), "..", "core", "cc-auth.js");
+    const ccAuthPath = join(dirname(fileURLToPath(import.meta.url)), "core", "cc-auth.js");
     spawnSync("node", [ccAuthPath], { stdio: "inherit", shell: true });
     
     // Sync accounts after login
@@ -633,7 +633,7 @@ try {
 }
 
 // 5. Run the TUI
-const tuiScript = join(dirname(__dirname), "core", "tui.js");
+const tuiScript = join(dirname(fileURLToPath(import.meta.url)), "core", "tui.js");
 try {
   const tmpFile = join(HOME, `.cc-output-${Date.now()}.tmp`);
   process.env.CC_OUTPUT = tmpFile; process.env.HUB_OUTPUT = tmpFile; process.env.CC_LAUNCHER = "1";
