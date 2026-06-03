@@ -585,6 +585,39 @@ if (firstArg && !firstArg.startsWith('-') && existsSync(firstArg)) {
   }
 }
 
+// Run Plugin Updater
+try {
+  const updaterPath = join(homedir(), ".config", "github", "plugin-updater", "index.js");
+  if (existsSync(updaterPath)) {
+    const updater = await import("file://" + updaterPath.replace(/\\/g, "/")).then(m => m.default || m);
+    if (updater && updater.updatePlugin) {
+      // Update claude-hub
+      updater.updatePlugin("claude-hub", "https://github.com/intisy/claude-hub.git");
+      
+      // Update plugins from plugins.json
+      const configDir = join(homedir(), ".config", "claude");
+      const pluginsJsonPath = join(configDir, "plugins.json");
+      if (existsSync(pluginsJsonPath)) {
+        try {
+          const plugins = JSON.parse(readFileSync(pluginsJsonPath, "utf-8"));
+          for (const plugin of plugins) {
+            if (plugin.url && plugin.enabled !== false && plugin.type !== "npm") {
+              const branch = plugin.branch || null;
+              const commit = plugin.commit || null;
+              updater.updatePlugin(plugin.name, plugin.url, branch, commit);
+              updater.deployToExecutionDir(plugin.name, join(configDir, "plugin"));
+            }
+          }
+        } catch (e) {
+          console.error("[\x1b[36mcc\x1b[0m] Failed to parse plugins.json", e);
+        }
+      }
+    }
+  }
+} catch (e) {
+  // Silent fail if updater is unavailable
+}
+
 // 5. Run the TUI
 const tuiScript = join(dirname(__dirname), "core", "tui.js");
 try {
