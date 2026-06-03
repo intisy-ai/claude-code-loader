@@ -10,6 +10,7 @@ async function runUpdater() {
     let updaterModule = null;
   const localUpdaterPath = join(configDir, "plugin", "plugin-updater", "index.js");
   const fallbackUpdaterPath = join(configDir, "plugin", "claude-plugin-updater", "index.js");
+  const npmUpdaterPath = join(configDir, "node_modules", "plugin-updater", "index.js");
   
   try {
     updaterModule = await import("plugin-updater");
@@ -17,6 +18,8 @@ async function runUpdater() {
     try {
       if (existsSync(localUpdaterPath)) {
         updaterModule = await import("file://" + localUpdaterPath.replace(/\\/g, "/"));
+      } else if (existsSync(npmUpdaterPath)) {
+        updaterModule = await import("file://" + npmUpdaterPath.replace(/\\/g, "/"));
       } else if (existsSync(fallbackUpdaterPath)) {
         updaterModule = await import("file://" + fallbackUpdaterPath.replace(/\\/g, "/"));
       }
