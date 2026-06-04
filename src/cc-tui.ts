@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-nocheck
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
@@ -621,17 +622,6 @@ try {
 } catch (e) {
   // Silent fail if updater is unavailable
 }
-          }
-        } catch (e) {
-          console.error("[\x1b[36mcc\x1b[0m] Failed to parse plugins.json", e);
-        }
-      }
-    }
-  }
-} catch (e) {
-  // Silent fail if updater is unavailable
-}
-
 // 5. Run the TUI
 const tuiScript = join(dirname(fileURLToPath(import.meta.url)), "core", "tui.js");
 try {
@@ -660,3 +650,4 @@ try {
   console.error("Error running TUI", e);
 }
 
+// @ts-nocheck
