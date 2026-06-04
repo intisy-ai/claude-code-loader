@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync, mkdirSync, readFileSync } from "fs";
+import { appendFileSync,  } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -77,7 +77,7 @@ async function runEarlyLaunchHooks(configDir: string) {
 // Install / remove the `cc` shell command
 // ---------------------------------------------------------------------------
 function getBinDir(configDir: string) {
-  return join(configDir, "bin");
+  return join(homedir(), ".local", "bin");
 }
 
 async function installCcCommand() {
