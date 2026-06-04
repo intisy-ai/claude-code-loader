@@ -1,20 +1,26 @@
-import { appendFileSync, , writeFileSync, mkdirSync, readFileSync } from "fs";
+import { existsSync, writeFileSync, mkdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
-function getAppConfigDir() { appendFileSync, (directPath) ? directPath : configPath;
+function getAppConfigDir() {
+  const home = homedir();
+  const directPath = join(home, ".claude");
+  const configPath = join(home, ".config", "claude");
+  return existsSync(directPath) ? directPath : configPath;
 }
 
 // ---------------------------------------------------------------------------
 // General Bootstrapper
 // ---------------------------------------------------------------------------
-async function runEarlyLaunchHooks(configDir: string) { appendFileSync, (pluginsJsonPath)) return;
+async function runEarlyLaunchHooks(configDir: string) {
+  const pluginsJsonPath = join(configDir, "config", "plugins.json");
+  if (!existsSync(pluginsJsonPath)) return;
 
   let plugins: any[] = [];
   try {
     plugins = JSON.parse(readFileSync(pluginsJsonPath, "utf-8"));
   } catch (e) {
-    writeLog(configDir, , true);
+    console.error("[Claude Hub] Failed to parse plugins.json", e);
     return;
   }
 
@@ -23,6 +29,7 @@ async function runEarlyLaunchHooks(configDir: string) { appendFileSync, (plugins
     
     let mod: any = null;
     const namesToTry = [plugin.name];
+    if (plugin.name === "plugin-updater") namesToTry.push("claude-plugin-updater");
     
     for (const pName of namesToTry) {
       try {
@@ -60,7 +67,7 @@ async function runEarlyLaunchHooks(configDir: string) { appendFileSync, (plugins
           }
         }
       } catch (e) {
-        writeLog(configDir, , true);
+        console.error(`[Claude Hub] Failed to run earlyLaunch for ${plugin.name}`, e);
       }
     }
   }
@@ -70,13 +77,18 @@ async function runEarlyLaunchHooks(configDir: string) { appendFileSync, (plugins
 // Install / remove the `cc` shell command
 // ---------------------------------------------------------------------------
 function getBinDir(configDir: string) {
-  return join(homedir(), ".local", "bin");
+  return join(configDir, "bin");
 }
 
-async function installCcCommand() { appendFileSync, (binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
+async function installCcCommand() {
+  const configDir = getAppConfigDir();
+  await runEarlyLaunchHooks(configDir);
+
+  const binDir = getBinDir(configDir);
+  if (!existsSync(binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
   
   // Point to the compiled cc-tui.js inside the repos directory
-  const binTuiPath = join(configDir, "repos", "claude-loader", "dist", "cc-tui.js");
+  const binTuiPath = join(configDir, "repos", "claude-hub", "dist", "cc-tui.js");
   if (!existsSync(binTuiPath)) return; // Wait for updater to succeed next time
 
   const tuiPathEscaped = binTuiPath.replace(/\\/g, "\\\\");
@@ -102,7 +114,7 @@ export async function activate() {
   try {
     await installCcCommand();
   } catch (e) {
-    writeLog(configDir, , true);
+    console.error("[Claude Hub] Failed to initialize:", e);
   }
   return {};
 }
