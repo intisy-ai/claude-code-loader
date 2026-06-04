@@ -1,6 +1,22 @@
 import { appendFileSync,  } from "fs";
 import { join } from "path";
-import { homedir } from "os";
+
+
+function writeLog(configDir: string, message: string, isError: boolean = false) {
+  try {
+    const date = new Date();
+    const dateStr = date.toISOString().split('T')[0];
+    const logsDir = join(configDir, 'logs', dateStr);
+    if (!existsSync(logsDir)) {
+      mkdirSync(logsDir, { recursive: true });
+    }
+    const logFile = join(logsDir, 'loader.log');
+    const prefix = isError ? '[ERROR]' : '[INFO]';
+    const logMsg = '[' + date.toISOString() + '] ' + prefix + ' ' + message + '\n';
+    appendFileSync(logFile, logMsg);
+  } catch (e) {}
+}
+
 
 function getAppConfigDir() {
   const home = homedir();
@@ -20,7 +36,7 @@ async function runEarlyLaunchHooks(configDir: string) {
   try {
     plugins = JSON.parse(readFileSync(pluginsJsonPath, "utf-8"));
   } catch (e) {
-    console.error("[Claude Hub] Failed to parse plugins.json", e);
+    writeLog(configDir, "Failed to parse plugins.json: " + e, true);
     return;
   }
 
