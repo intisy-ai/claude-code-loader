@@ -114,6 +114,7 @@ function installCcWrapper(configDir: string) {
     const shPath = join(binDir, "cc");
     const lines = [
       "#!/usr/bin/env bash",
+      'export PATH="$HOME/.bun/bin:$PATH"',
       'export CC_OUTPUT="${TEMP:-${TMPDIR:-/tmp}}/cc-dir-$$.txt"',
       `bun run "${binTuiPath}" "$@"`,
       "EXIT=$?",
