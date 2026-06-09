@@ -1,19 +1,34 @@
-import { existsSync, writeFileSync, mkdirSync, readFileSync, appendFileSync } from "fs";
+﻿import { existsSync, writeFileSync, mkdirSync, readFileSync, appendFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
 const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
 
-function writeLog(configDir: string, message: string, isError: boolean = false) {
+let PLUGIN_CONFIG: Record<string, unknown> | null = null;
+function getPluginConfig(configDir: string): Record<string, unknown> {
+  if (PLUGIN_CONFIG !== null) return PLUGIN_CONFIG;
   try {
-    const date = new Date();
-    const dateStr = date.toISOString().split("T")[0];
-    const logsDir = join(configDir, "logs", dateStr);
-    if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
-    const logFile = join(logsDir, `loader-${START_TIME}.log`);
-    const prefix = isError ? "[ERROR]" : "[INFO]";
-    const logMsg = "[" + date.toISOString() + "] " + prefix + " " + message + "\n";
-    appendFileSync(logFile, logMsg);
+    const preferred = join(configDir, "config", "claude-loader.json");
+    const fallback  = join(configDir, "claude-loader.json");
+    const p = existsSync(preferred) ? preferred : existsSync(fallback) ? fallback : null;
+    PLUGIN_CONFIG = p ? JSON.parse(readFileSync(p, "utf-8")) : {};
+  } catch { PLUGIN_CONFIG = {}; }
+  return PLUGIN_CONFIG;
+}
+
+function writeLog(configDir: string, message: string, isError: boolean = false) {
+  const loggingEnabled = getPluginConfig(configDir).logging !== false;
+  try {
+    if (loggingEnabled) {
+      const date = new Date();
+      const dateStr = date.toISOString().split("T")[0];
+      const logsDir = join(configDir, "logs", dateStr);
+      if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+      const logFile = join(logsDir, `claude-loader-${START_TIME}.log`);
+      const prefix = isError ? "[ERROR]" : "[INFO]";
+      const logMsg = "[" + date.toISOString() + "] " + prefix + " " + message + "\n";
+      appendFileSync(logFile, logMsg);
+    }
   } catch (e) {}
 }
 
@@ -157,3 +172,4 @@ export async function activate() {
   writeLog(configDir, "Claude Launcher activation complete");
   return {};
 }
+

@@ -1,18 +1,27 @@
-{
+﻿{
   "name": "claude-loader",
-  "version": "1.1.0",
-  "description": "",
+  "version": "1.1.1",
+  "description": "TUI launcher and cc shell command for Claude Code.",
   "main": "dist/plugin.js",
+  "type": "module",
+  "license": "MIT",
+  "author": "intisy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/intisy/claude-loader.git"
+  },
+  "keywords": ["claude", "claude-code", "plugin", "launcher", "tui"],
+  "files": ["dist/", "README.md", "LICENSE"],
+  "engines": { "node": ">=20.0.0" },
   "scripts": {
-    "build": "cd core && npm install && npm run build && cd .. && tsc",
+    "build": "npx tsc --project core/tsconfig.json && npx tsc",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
   "devDependencies": {
     "@types/node": "^25.9.1",
     "typescript": "^6.0.3"
   }
 }
+
+
