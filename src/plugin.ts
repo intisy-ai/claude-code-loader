@@ -71,33 +71,37 @@ function installCcWrapper(configDir: string) {
   if (!existsSync(binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
 
   const pluginDir = dirname(fileURLToPath(import.meta.url));
-  // when deployed to plugin/, only plugin.js is copied — the built TUI lives in the repos clone
+  // resolved at every cc invocation, not at install time, so the wrapper
+  // works as soon as any copy of the TUI exists and never goes stale
   const tuiCandidates = [
     join(pluginDir, "cc-tui.js"),
     join(configDir, "repos", "claude-code-loader", "core", "dist", "tui.js"),
   ];
-  const binTuiPath = tuiCandidates.find((p) => existsSync(p));
-  if (!binTuiPath) {
-    writeLog(configDir, "TUI not found at " + tuiCandidates.join(" or ") + ", skipping wrapper install");
-    return;
-  }
-
-  writeLog(configDir, "Installing cc wrapper pointing to " + binTuiPath);
+  writeLog(configDir, "Installing cc wrapper with runtime TUI resolution");
 
   if (process.platform === "win32") {
     const cmdPath = join(binDir, "cc.cmd");
-    const tuiEscaped = binTuiPath.replace(/\\/g, "\\\\");
-    writeFileSync(cmdPath, `@echo off\r\nbun run "${tuiEscaped}" %*\r\n`, "utf-8");
+    const cmdLines = ["@echo off", "setlocal"];
+    for (const candidate of tuiCandidates) {
+      cmdLines.push(`if exist "${candidate}" ( bun run "${candidate}" %* & exit /b %errorlevel% )`);
+    }
+    cmdLines.push("claude %*");
+    writeFileSync(cmdPath, cmdLines.join("\r\n") + "\r\n", "utf-8");
     try { const fs = require("fs"); fs.unlinkSync(join(binDir, "cc")); } catch {}
   } else {
     const shPath = join(binDir, "cc");
     const lines = [
       "#!/usr/bin/env bash",
       'export PATH="$HOME/.bun/bin:$PATH"',
-      'if ! command -v bun &>/dev/null; then exec claude "$@"; fi',
-      `if [ ! -f "${binTuiPath}" ]; then exec claude "$@"; fi`,
+      'TUI=""',
+      "for candidate in \\",
+      ...tuiCandidates.map((candidate, index) =>
+        `  "${candidate}"${index < tuiCandidates.length - 1 ? " \\" : "; do"}`),
+      '  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi',
+      "done",
+      'if [ -z "$TUI" ] || ! command -v bun >/dev/null 2>&1; then exec claude "$@"; fi',
       'export CC_OUTPUT="${TEMP:-${TMPDIR:-/tmp}}/cc-dir-$$.txt"',
-      `bun run "${binTuiPath}" "$@"`,
+      'bun run "$TUI" "$@"',
       "EXIT=$?",
       'if [ $EXIT -eq 42 ]; then',
       '  rm -f "$CC_OUTPUT"',
