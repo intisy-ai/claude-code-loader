@@ -45,20 +45,10 @@ async function runEarlyLaunchHooks(configDir: string) {
     writeLog(configDir, "Updates driven by plugin-updater (activation context), skipping earlyLaunch");
     return;
   }
-  const pluginsJsonPath = join(configDir, "config", "plugins.json");
-  let gitPlugins: any[] = [];
-  if (existsSync(pluginsJsonPath)) {
-    try {
-      gitPlugins = JSON.parse(readFileSync(pluginsJsonPath, "utf-8"));
-      writeLog(configDir, "Found " + gitPlugins.length + " git plugins in plugins.json");
-    } catch (e) {
-      writeLog(configDir, "Failed to parse plugins.json: " + e, true);
-    }
-  }
-
   try {
-    const updater = await import("plugin-updater");
-    writeLog(configDir, "Running plugin-updater earlyLaunch");
+    const updater: any = await import("plugin-updater");
+    const gitPlugins = updater.getPlugins(configDir);
+    writeLog(configDir, "Running plugin-updater earlyLaunch for " + gitPlugins.length + " plugins");
     await updater.earlyLaunch(configDir, gitPlugins);
     writeLog(configDir, "plugin-updater earlyLaunch complete");
   } catch (e) {
@@ -75,10 +65,7 @@ function installCcWrapper(configDir: string) {
   if (!existsSync(binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
 
   const pluginDir = dirname(fileURLToPath(import.meta.url));
-  // resolved at every cc invocation, not at install time, so the wrapper
-  // works as soon as any copy of the TUI exists and never goes stale
   const tuiCandidates = [
-    join(pluginDir, "cc-tui.js"),
     join(configDir, "repos", "claude-code-loader", "core", "dist", "tui.js"),
   ];
   writeLog(configDir, "Installing cc wrapper with runtime TUI resolution");
