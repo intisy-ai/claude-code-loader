@@ -41,6 +41,10 @@ function getAppConfigDir() {
 }
 
 async function runEarlyLaunchHooks(configDir: string) {
+  if (process.env.PLUGIN_UPDATER_ACTIVATION === "1") {
+    writeLog(configDir, "Updates driven by plugin-updater (activation context), skipping earlyLaunch");
+    return;
+  }
   const pluginsJsonPath = join(configDir, "config", "plugins.json");
   let gitPlugins: any[] = [];
   if (existsSync(pluginsJsonPath)) {
