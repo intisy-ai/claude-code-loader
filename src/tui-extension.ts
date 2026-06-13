@@ -126,15 +126,16 @@ function handleKey(key, state, tuiApi) {
   if (key === "enter") {
     const list = filtered(tab.search);
     const e = list[tab.pickCursor];
+    // close first so a side-effect failure can never leave the menu stuck open
+    tab.mode = "slots";
+    if (tuiApi.setTextInput) tuiApi.setTextInput(false);
     if (e) {
       const cfg = readConfig();
       cfg.modelMap = cfg.modelMap || {};
       cfg.modelMap[tab.editingSlot] = { provider: e.provider, model: e.model };
       writeConfig(cfg);
-      if (tuiApi.flash) tuiApi.flash(tab.editingSlot + " -> " + e.provider + " / " + e.model);
+      try { if (tuiApi.flash) tuiApi.flash(tab.editingSlot + " -> " + e.provider + " / " + e.model); } catch {}
     }
-    tab.mode = "slots";
-    if (tuiApi.setTextInput) tuiApi.setTextInput(false);
     return;
   }
   if (typeof key === "string" && key.length === 1) { tab.search += key; tab.pickCursor = 0; }
