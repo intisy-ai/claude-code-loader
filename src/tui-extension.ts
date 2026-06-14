@@ -1,8 +1,9 @@
 // @ts-nocheck
-// Custom TUI tab (loaded via HUB_TUI_EXTENSION): map each Claude tier to a
-// provider model. Picking a slot opens one list with every provider as a
-// non-interactive category header and its (selectable) models listed below.
-// Favorites (Tab) are pinned to a section on top AND kept in their category.
+// Custom TUI tab (loaded via HUB_TUI_EXTENSION). Main view: the Claude tier
+// mapping + a selectable provider list. Enter a tier -> assign picker (all
+// providers, grouped). Enter a provider -> browse that provider's models.
+// Both list views: bold category headers, favorites pinned on top (and kept in
+// their category), Tab toggles a favorite, search ignores the favorites section.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
@@ -73,92 +74,107 @@ function groupByProvider(entries) {
   return groups;
 }
 
-// no search: favorited models pinned in a Favorites section AND still shown in
-// their provider category. searching: matches grouped by provider, no favorites
-// section (search behaves as if favorites don't exist).
-function buildPick() {
+// favorites pinned on top AND kept in their provider category (listed twice);
+// while searching the favorites section is dropped.
+function buildList(entries) {
   const favSet = new Set(readConfig().favorites || []);
   const q = tab.search.toLowerCase();
-  const match = (e) => (e.model + " " + e.name).toLowerCase().indexOf(q) >= 0;
-  const entries = allEntries().filter(match);
-  const favs = q ? [] : entries.filter((e) => favSet.has(e.id));
-  const groups = groupByProvider(entries);
+  const filtered = entries.filter((e) => (e.model + " " + e.name).toLowerCase().indexOf(q) >= 0);
+  const favs = q ? [] : filtered.filter((e) => favSet.has(e.id));
+  const groups = groupByProvider(filtered);
   const selectable = favs.concat(...groups.map((g) => g.items));
   return { favSet, favs, groups, selectable };
 }
 
-const tab = { mode: "slots", slotCursor: 0, editingSlot: "opus", search: "", pickCursor: 0 };
+const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0 };
+
+// model row + category header share the same left inset (text at column 4); the
+// selection ">" sits in the gutter to the left so text never shifts.
+function modelRow(h, e, sel) {
+  const gutter = sel ? (h.YELLOW + "> " + h.RST) : "  ";
+  const body = sel ? (h.BG_SEL + h.BOLD + h.WHITE) : h.GRAY;
+  h.pushBody("  " + gutter + body + e.model + h.RST + h.GRAY + "  " + e.name + h.RST, sel);
+}
+function catHeader(h, label, first) {
+  if (!first) h.pushBody("", false);          // newline between categories
+  h.pushBody("    " + h.BOLD + h.GRAY + label + h.RST, false);
+}
+
+function renderList(h, title, built) {
+  const { favs, groups, selectable } = built;
+  h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " " + title + " " + h.RST +
+    h.BG_SEL + " Search: " + tab.search + "_ " + h.RST, false);
+  if (selectable.length === 0) h.pushBody("  " + h.GRAY + "No matching models." + h.RST, false);
+  let i = 0;
+  let first = true;
+  const rows = (items) => items.forEach((e) => { modelRow(h, e, i === tab.pickCursor); i++; });
+  if (favs.length) { catHeader(h, "Favorites", first); first = false; rows(favs); }
+  for (const g of groups) { catHeader(h, g.provider, first); first = false; rows(g.items); }
+  h.pushBody("", false);
+  h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
+  h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab ★ Favorite   Esc Back" + h.RST);
+}
 
 function renderSlots(h) {
   const map = readConfig().modelMap || {};
+  const provs = uniqueProviders();
   h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " Claude model mapping" + h.RST, false);
   h.pushBody("  " + h.DIM + "Assign each Claude tier to a provider model." + h.RST, false);
   h.pushBody("", false);
   SLOTS.forEach((slot, i) => {
-    const sel = tab.slotCursor === i;
+    const sel = tab.cursor === i;
     const a = map[slot.key];
     const value = a && a.provider ? (h.CYAN + a.provider + " / " + a.model + h.RST) : (h.DIM + "(unset)" + h.RST);
-    const arrow = sel ? (h.YELLOW + " > " + h.RST) : "   ";
-    h.pushBody("  " + (sel ? h.BG_SEL : "") + arrow + (sel ? h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
+    const gutter = sel ? (h.YELLOW + "> " + h.RST) : "  ";
+    h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
   });
   h.pushBody("", false);
-  const provs = uniqueProviders();
   h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " Providers (" + provs.length + ")" + h.RST, false);
   if (provs.length === 0) h.pushBody("    " + h.GRAY + "None installed." + h.RST, false);
-  provs.forEach((p) => h.pushBody("    " + h.GRAY + p.name + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, false));
+  provs.forEach((p, j) => {
+    const sel = tab.cursor === SLOTS.length + j;
+    const gutter = sel ? (h.YELLOW + "> " + h.RST) : "  ";
+    h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + p.name + h.RST + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, sel);
+  });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter Assign   Tab Switch   Q Quit" + h.RST);
-}
-
-function renderPick(h) {
-  const { favSet, favs, groups, selectable } = buildPick();
-  if (tab.pickCursor >= selectable.length) tab.pickCursor = Math.max(0, selectable.length - 1);
-  const slot = SLOTS.find((s) => s.key === tab.editingSlot);
-  h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " Assign " + (slot ? slot.label : "") + " " + h.RST +
-    h.BG_SEL + " Search: " + tab.search + "_ " + h.RST, false);
-  if (selectable.length === 0) h.pushBody("  " + h.GRAY + "No matching models." + h.RST, false);
-
-  let i = 0;
-  const row = (e) => {
-    const sel = i === tab.pickCursor;
-    const arrow = sel ? (h.YELLOW + ">" + h.RST) : " ";
-    const star = favSet.has(e.id) ? (h.YELLOW + "★" + h.RST) : " ";
-    h.pushBody("  " + arrow + " " + star + " " + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + e.model + h.RST + h.GRAY + "  " + e.name + h.RST, sel);
-    i++;
-  };
-  if (favs.length) { h.pushBody("  " + h.YELLOW + "★ " + h.RST + h.GRAY + "Favorites" + h.RST, false); favs.forEach(row); }
-  for (const g of groups) { h.pushBody("  " + h.GRAY + g.provider + h.RST, false); g.items.forEach(row); }
-
-  h.pushBody("", false);
-  h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   Enter Select   Tab ★ Favorite   Esc Cancel" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter Open   Tab Switch   Q Quit" + h.RST);
 }
 
 function render(state, h) {
-  if (tab.mode === "pick") renderPick(h);
+  if (tab.mode === "pick") { const slot = SLOTS.find((s) => s.key === tab.editingSlot); renderList(h, "Assign " + (slot ? slot.label : ""), buildList(allEntries())); }
+  else if (tab.mode === "browse") renderList(h, tab.editingProvider + " models", buildList(allEntries().filter((e) => e.provider === tab.editingProvider)));
   else renderSlots(h);
+}
+
+function currentList() {
+  if (tab.mode === "pick") return buildList(allEntries());
+  return buildList(allEntries().filter((e) => e.provider === tab.editingProvider));
 }
 
 function handleKey(key, state, tuiApi) {
   if (tab.mode === "slots") {
-    if (key === "up" || key === "w") { tab.slotCursor = (tab.slotCursor - 1 + SLOTS.length) % SLOTS.length; return; }
-    if (key === "down" || key === "s") { tab.slotCursor = (tab.slotCursor + 1) % SLOTS.length; return; }
+    const provs = uniqueProviders();
+    const total = SLOTS.length + provs.length;
+    if (key === "up" || key === "w") { tab.cursor = (tab.cursor - 1 + total) % total; return; }
+    if (key === "down" || key === "s") { tab.cursor = (tab.cursor + 1) % total; return; }
     if (key === "enter" || key === "space") {
-      tab.editingSlot = SLOTS[tab.slotCursor].key;
-      tab.mode = "pick"; tab.search = ""; tab.pickCursor = 0;
+      tab.search = ""; tab.pickCursor = 0;
+      if (tab.cursor < SLOTS.length) { tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "pick"; }
+      else { tab.editingProvider = provs[tab.cursor - SLOTS.length].name; tab.mode = "browse"; }
       if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(true);
     }
     return;
   }
-  // pick mode (raw text routed in via S.mode=tabinput); cursor lands on models only
+
+  // pick / browse (text-input): cursor lands on models only
   const close = () => { tab.mode = "slots"; if (tuiApi.setTextInput) tuiApi.setTextInput(false); };
   if (key === "escape") { close(); return; }
   if (key === "up") { tab.pickCursor = Math.max(0, tab.pickCursor - 1); return; }
-  if (key === "down") { tab.pickCursor = Math.min(buildPick().selectable.length - 1, tab.pickCursor + 1); return; }
+  if (key === "down") { tab.pickCursor = Math.min(currentList().selectable.length - 1, tab.pickCursor + 1); return; }
   if (key === "backspace") { tab.search = tab.search.slice(0, -1); tab.pickCursor = 0; return; }
   if (key === "tab") {
-    const e = buildPick().selectable[tab.pickCursor];
+    const e = currentList().selectable[tab.pickCursor];
     if (e) {
       const cfg = readConfig();
       const favs = new Set(cfg.favorites || []);
@@ -169,7 +185,8 @@ function handleKey(key, state, tuiApi) {
     return;
   }
   if (key === "enter") {
-    const e = buildPick().selectable[tab.pickCursor];
+    if (tab.mode !== "pick") return;   // browse mode: nothing to assign
+    const e = currentList().selectable[tab.pickCursor];
     close();
     if (e) {
       const cfg = readConfig();
