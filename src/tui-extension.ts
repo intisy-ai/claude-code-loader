@@ -113,7 +113,7 @@ function renderList(h, title, built) {
   for (const g of groups) { catHeader(h, g.provider, first); first = false; rows(g.items); }
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab ★ Favorite   Esc Back" + h.RST);
+  h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab Favorite   Esc Back" + h.RST);
 }
 
 function renderSlots(h) {
