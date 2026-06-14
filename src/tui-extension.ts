@@ -2,7 +2,7 @@
 // Custom TUI tab (loaded via HUB_TUI_EXTENSION): map each Claude tier to a
 // provider model. Picking a slot opens one list with every provider as a
 // non-interactive category header and its (selectable) models listed below.
-// Favorites (Tab) pin to a section on top; search ignores the favorites section.
+// Favorites (Tab) are pinned to a section on top AND kept in their category.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
@@ -53,6 +53,16 @@ function allEntries() {
   return out;
 }
 
+function uniqueProviders() {
+  const order = [];
+  const counts = {};
+  for (const e of allEntries()) {
+    if (counts[e.provider] === undefined) { counts[e.provider] = 0; order.push(e.provider); }
+    counts[e.provider]++;
+  }
+  return order.map((name) => ({ name, count: counts[name] }));
+}
+
 function groupByProvider(entries) {
   const groups = [];
   const by = {};
@@ -63,17 +73,16 @@ function groupByProvider(entries) {
   return groups;
 }
 
-// no search: favorited models pinned in a Favorites section, the rest grouped by
-// provider. searching: every match grouped by provider, favorites section gone.
+// no search: favorited models pinned in a Favorites section AND still shown in
+// their provider category. searching: matches grouped by provider, no favorites
+// section (search behaves as if favorites don't exist).
 function buildPick() {
   const favSet = new Set(readConfig().favorites || []);
   const q = tab.search.toLowerCase();
   const match = (e) => (e.model + " " + e.name).toLowerCase().indexOf(q) >= 0;
   const entries = allEntries().filter(match);
-  let favs = [];
-  let rest = entries;
-  if (!q) { favs = entries.filter((e) => favSet.has(e.id)); rest = entries.filter((e) => !favSet.has(e.id)); }
-  const groups = groupByProvider(rest);
+  const favs = q ? [] : entries.filter((e) => favSet.has(e.id));
+  const groups = groupByProvider(entries);
   const selectable = favs.concat(...groups.map((g) => g.items));
   return { favSet, favs, groups, selectable };
 }
@@ -93,6 +102,11 @@ function renderSlots(h) {
     h.pushBody("  " + (sel ? h.BG_SEL : "") + arrow + (sel ? h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
   });
   h.pushBody("", false);
+  const provs = uniqueProviders();
+  h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " Providers (" + provs.length + ")" + h.RST, false);
+  if (provs.length === 0) h.pushBody("    " + h.GRAY + "None installed." + h.RST, false);
+  provs.forEach((p) => h.pushBody("    " + h.GRAY + p.name + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, false));
+  h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
   h.pushFoot("  " + h.DIM + "^v Move   Enter Assign   Tab Switch   Q Quit" + h.RST);
 }
@@ -108,14 +122,13 @@ function renderPick(h) {
   let i = 0;
   const row = (e) => {
     const sel = i === tab.pickCursor;
-    const star = favSet.has(e.id) ? (h.YELLOW + "★ " + h.RST) : "  ";
-    const arrow = sel ? (h.YELLOW + " > " + h.RST) : "   ";
-    h.pushBody("  " + (sel ? h.BG_SEL : "") + arrow + star + (sel ? h.BOLD + h.WHITE : h.GRAY) + e.model + h.RST + h.GRAY + "  " + e.name + h.RST, sel);
+    const arrow = sel ? (h.YELLOW + ">" + h.RST) : " ";
+    const star = favSet.has(e.id) ? (h.YELLOW + "★" + h.RST) : " ";
+    h.pushBody("  " + arrow + " " + star + " " + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + e.model + h.RST + h.GRAY + "  " + e.name + h.RST, sel);
     i++;
   };
-  // category labels are non-interactive: indented, soft colour (not purple)
-  if (favs.length) { h.pushBody("    " + h.YELLOW + "★ " + h.RST + h.GRAY + "Favorites" + h.RST, false); favs.forEach(row); }
-  for (const g of groups) { h.pushBody("    " + h.GRAY + g.provider + h.RST, false); g.items.forEach(row); }
+  if (favs.length) { h.pushBody("  " + h.YELLOW + "★ " + h.RST + h.GRAY + "Favorites" + h.RST, false); favs.forEach(row); }
+  for (const g of groups) { h.pushBody("  " + h.GRAY + g.provider + h.RST, false); g.items.forEach(row); }
 
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
