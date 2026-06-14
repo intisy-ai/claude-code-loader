@@ -97,7 +97,8 @@ function modelRow(h, e, sel) {
 }
 function catHeader(h, label, first) {
   if (!first) h.pushBody("", false);          // newline between categories
-  h.pushBody("    " + h.BOLD + h.GRAY + label + h.RST, false);
+  // bold + a distinct colour: bold alone is invisible on bright-black (GRAY)
+  h.pushBody("    " + h.BOLD + h.CYAN + label + h.RST, false);
 }
 
 function renderList(h, title, built) {
