@@ -64,6 +64,34 @@ function uniqueProviders() {
   return order.map((name) => ({ name, count: counts[name] }));
 }
 
+function resolveHandlerPath(providerName) {
+  let repos = [];
+  try { repos = readdirSync(reposDir()); } catch { return null; }
+  for (const repo of repos) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
+      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
+      const match = declared.find((p) => (p.name || repo) === providerName);
+      if (match && match.handler) return join(reposDir(), repo, match.handler);
+    } catch {}
+  }
+  return null;
+}
+
+// suspend the loader TUI and run the provider's shared account menu (its menu() export)
+function openAccounts(providerName, tuiApi) {
+  const handlerPath = resolveHandlerPath(providerName);
+  if (!handlerPath || !existsSync(handlerPath)) { try { tuiApi.flash("No handler for " + providerName); } catch {} return; }
+  if (!tuiApi.runBlocking) { try { tuiApi.flash("Loader too old — update for account management"); } catch {} return; }
+  tuiApi.runBlocking(async () => {
+    try {
+      const mod = await import(handlerPath);
+      if (typeof mod.menu === "function") await mod.menu();
+      else process.stdout.write(providerName + " has no account menu.\n");
+    } catch (e) { process.stdout.write("Account menu failed: " + (e && e.message || e) + "\n"); }
+  });
+}
+
 function groupByProvider(entries) {
   const groups = [];
   const by = {};
@@ -139,7 +167,7 @@ function renderSlots(h) {
   });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter Open   Tab Switch   Q Quit" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter Open   a Accounts   Tab Switch   Q Quit" + h.RST);
 }
 
 function render(state, h) {
@@ -159,6 +187,7 @@ function handleKey(key, state, tuiApi) {
     const total = SLOTS.length + provs.length;
     if (key === "up" || key === "w") { tab.cursor = (tab.cursor - 1 + total) % total; return; }
     if (key === "down" || key === "s") { tab.cursor = (tab.cursor + 1) % total; return; }
+    if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "enter" || key === "space") {
       tab.search = ""; tab.pickCursor = 0;
       if (tab.cursor < SLOTS.length) { tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "pick"; }
