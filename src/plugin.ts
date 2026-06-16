@@ -67,6 +67,7 @@ function installCcWrapper(configDir: string) {
   const pluginDir = dirname(fileURLToPath(import.meta.url));
   // the custom Providers/model-mapping tab; runs from the repo clone's dist/
   const extPath = join(configDir, "repos", "claude-code-loader", "dist", "tui-extension.js");
+  const authPath = join(configDir, "repos", "claude-code-loader", "dist", "auth-login.js");
   const tuiCandidates = [
     join(configDir, "repos", "claude-code-loader", "core", "dist", "tui.js"),
   ];
@@ -85,8 +86,8 @@ function installCcWrapper(configDir: string) {
       'set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567"',
       'set "ANTHROPIC_API_KEY=sk-ant-loader-proxy"',
       'set "_args=%*"',
-      // `cc auth ...` opens the Provider tab instead of forwarding to claude
-      'if "%1"=="auth" ( set "HUB_OPEN_TAB=providers" & set "_args=" )',
+      // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
+      `if "%1"=="auth" ( if exist "${authPath}" ( bun run "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
     ];
     for (const candidate of tuiCandidates) {
       cmdLines.push(`if exist "${candidate}" ( bun run "${candidate}" %_args% & exit /b %errorlevel% )`);
@@ -117,8 +118,8 @@ function installCcWrapper(configDir: string) {
       '  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi',
       "done",
       'if [ -z "$TUI" ] || ! command -v bun >/dev/null 2>&1; then exec claude "$@"; fi',
-      // `cc auth ...` opens the Provider tab instead of forwarding to claude
-      'if [ "$1" = "auth" ]; then export HUB_OPEN_TAB="providers"; set --; fi',
+      // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
+      `if [ "$1" = "auth" ]; then if [ -f "${authPath}" ]; then exec bun run "${authPath}"; else export HUB_OPEN_TAB="providers"; set --; fi; fi`,
       'export CC_OUTPUT="${TEMP:-${TMPDIR:-/tmp}}/cc-dir-$$.txt"',
       'bun run "$TUI" "$@"',
       "EXIT=$?",
