@@ -4,3 +4,4 @@ dist/
 *.log
 
 *.stackdump
+package-lock.json
