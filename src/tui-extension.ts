@@ -33,20 +33,39 @@ function writeConfig(cfg) {
   } catch {}
 }
 
+// the live catalog core-auth fetched per provider (configDir/config/core-auth-models.json)
+function modelCache() {
+  try {
+    const p = join(configDir(), "config", "core-auth-models.json");
+    if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")) || {};
+  } catch {}
+  return {};
+}
+
 function allEntries() {
   const out = [];
   let repos = [];
   try { repos = readdirSync(reposDir()); } catch { return out; }
+  const cache = modelCache();
   for (const repo of repos) {
     try {
       const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
       const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
       for (const p of declared) {
         const provider = p.name || repo;
-        for (const m of (p.models || [])) {
-          const model = typeof m === "string" ? m : m.id;
-          const name = typeof m === "string" ? m : (m.name || m.id);
-          out.push({ provider, model, name, id: provider + "/" + model });
+        const cached = cache[provider] && cache[provider].models;
+        if (cached) {
+          // prefer the live/cached catalog core-auth wrote at login
+          for (const model of Object.keys(cached)) {
+            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model });
+          }
+        } else {
+          // fall back to any static list the package still declares
+          for (const m of (p.models || [])) {
+            const model = typeof m === "string" ? m : m.id;
+            const name = typeof m === "string" ? m : (m.name || m.id);
+            out.push({ provider, model, name, id: provider + "/" + model });
+          }
         }
       }
     } catch {}
