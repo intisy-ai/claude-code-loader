@@ -150,7 +150,7 @@ function catHeader(h, label, first) {
 
 function renderList(h, title, built) {
   const { favs, groups, selectable } = built;
-  h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " " + title + " " + h.RST +
+  h.pushBody("  " + h.BOLD + h.WHITE + "" + title + " " + h.RST +
     h.BG_SEL + " Search: " + tab.search + "_ " + h.RST, false);
   if (selectable.length === 0) h.pushBody("  " + h.GRAY + "No matching models." + h.RST, false);
   let i = 0;
@@ -166,7 +166,7 @@ function renderList(h, title, built) {
 function renderSlots(h) {
   const map = readConfig().modelMap || {};
   const provs = uniqueProviders();
-  h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " Claude model mapping" + h.RST, false);
+  h.pushBody("  " + h.BOLD + h.WHITE + "Claude model mapping" + h.RST, false);
   h.pushBody("  " + h.DIM + "Assign each Claude tier to a provider model." + h.RST, false);
   h.pushBody("", false);
   SLOTS.forEach((slot, i) => {
@@ -177,7 +177,7 @@ function renderSlots(h) {
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
   });
   h.pushBody("", false);
-  h.pushBody("  " + h.MAGENTA + "#" + h.GRAY + " Providers (" + provs.length + ")" + h.RST, false);
+  h.pushBody("  " + h.BOLD + h.WHITE + "Providers (" + provs.length + ")" + h.RST, false);
   if (provs.length === 0) h.pushBody("    " + h.GRAY + "None installed." + h.RST, false);
   provs.forEach((p, j) => {
     const sel = tab.cursor === SLOTS.length + j;
