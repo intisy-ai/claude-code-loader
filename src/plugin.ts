@@ -1,7 +1,7 @@
 ﻿import { existsSync, writeFileSync, mkdirSync, readFileSync, appendFileSync } from "fs";
 import { join, dirname } from "path";
 import { homedir } from "os";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
 
@@ -40,13 +40,32 @@ function getAppConfigDir() {
   return existsSync(directPath) ? directPath : configPath;
 }
 
+// Resolve plugin-updater the same way in both loaders: the bare specifier first,
+// then known install locations (skipped if absent). A path must be a file:// URL
+// for dynamic import (notably on Windows), hence pathToFileURL.
+async function loadUpdater(): Promise<any> {
+  try {
+    return await import("plugin-updater");
+  } catch {
+    // opencode installs npm plugins into its package cache, off the deployed
+    // plugin's resolution path; this candidate is simply absent under Claude.
+    const candidates = [
+      join(homedir(), ".cache", "opencode", "packages", "plugin-updater@latest", "node_modules", "plugin-updater", "dist", "index.js"),
+    ];
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return await import(pathToFileURL(candidate).href);
+    }
+    throw new Error("plugin-updater not resolvable");
+  }
+}
+
 async function runEarlyLaunchHooks(configDir: string) {
   if (process.env.PLUGIN_UPDATER_ACTIVATION === "1") {
     writeLog(configDir, "Updates driven by plugin-updater (activation context), skipping earlyLaunch");
     return;
   }
   try {
-    const updater: any = await import("plugin-updater");
+    const updater: any = await loadUpdater();
     const gitPlugins = updater.getPlugins(configDir);
     writeLog(configDir, "Running plugin-updater earlyLaunch for " + gitPlugins.length + " plugins");
     await updater.earlyLaunch(configDir, gitPlugins);
