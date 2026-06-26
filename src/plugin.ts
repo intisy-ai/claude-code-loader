@@ -4,6 +4,8 @@ import { homedir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 // @ts-ignore — generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
+// @ts-ignore — generated bundle, no .d.ts
+import { makeWriteLog } from "../core/dist/index.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -25,20 +27,11 @@ function getPluginConfig(configDir: string): Record<string, unknown> {
   return PLUGIN_CONFIG;
 }
 
+// Delegate to the shared core logger: loader lines get the [claude-code-loader] prefix,
+// per-plugin color, and the GLOBAL console toggle; core also does the file write
+// (respecting claude-code-loader.json `logging`). Signature kept for existing callers.
 function writeLog(configDir: string, message: string, isError: boolean = false) {
-  const loggingEnabled = getPluginConfig(configDir).logging !== false;
-  try {
-    if (loggingEnabled) {
-      const date = new Date();
-      const dateStr = date.toISOString().split("T")[0];
-      const logsDir = join(configDir, "logs", dateStr);
-      if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
-      const logFile = join(logsDir, `claude-code-loader-${START_TIME}.log`);
-      const prefix = isError ? "[ERROR]" : "[INFO]";
-      const logMsg = "[" + date.toISOString() + "] " + prefix + " " + message + "\n";
-      appendFileSync(logFile, logMsg);
-    }
-  } catch (e) {}
+  makeWriteLog("claude-code-loader", configDir)(message, isError);
 }
 
 function getAppConfigDir() {
