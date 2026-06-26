@@ -1,3 +1,7 @@
+[submodule "core-loader"]
+	path = core-loader
+	url = https://github.com/intisy-ai/core-loader.git
 [submodule "core"]
 	path = core
-	url = https://github.com/intisy-ai/core-loader.git
+	url = https://github.com/intisy-ai/core
+	branch = main

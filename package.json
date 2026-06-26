@@ -19,6 +19,8 @@
   ],
   "files": [
     "dist/",
+    "core-loader/dist/",
+    "core/dist/",
     "README.md",
     "LICENSE"
   ],
@@ -34,7 +36,7 @@
     }
   },
   "scripts": {
-    "build": "npx tsc --project core/tsconfig.json && npx tsc",
+    "build": "npx tsc --project core-loader/tsconfig.json && npx esbuild core/src/index.ts --bundle --platform=node --format=esm --outfile=core/dist/index.js && npx tsc",
     "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -2,6 +2,14 @@
 import { join, dirname } from "path";
 import { homedir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
+// @ts-ignore — generated bundle, no .d.ts
+import { maybeRunCli, deployLoaderCommands } from "./commands.js";
+
+// Slash-command invocations shell in as `node <this file> <action>`; handle them
+// first and exit, so command/config runs never go through plugin activation.
+if (await maybeRunCli(getAppConfigDir())) {
+  process.exit(0);
+}
 
 const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
 
@@ -88,6 +96,9 @@ function installCcWrapper(configDir: string) {
   const extPath = join(configDir, "repos", "claude-code-loader", "dist", "tui-extension.js");
   const authPath = join(configDir, "repos", "claude-code-loader", "dist", "auth-login.js");
   const tuiCandidates = [
+    // core-loader is the post-rename location; the bare "core" path remains as a
+    // fallback so already-deployed (pre-rename) installs keep resolving the TUI.
+    join(configDir, "repos", "claude-code-loader", "core-loader", "dist", "tui.js"),
     join(configDir, "repos", "claude-code-loader", "core", "dist", "tui.js"),
   ];
   writeLog(configDir, "Installing cc wrapper with runtime TUI resolution");
@@ -197,6 +208,12 @@ export async function activate() {
     installCcWrapper(configDir);
   } catch (e) {
     writeLog(configDir, "Failed to install cc wrapper: " + e, true);
+  }
+
+  try {
+    deployLoaderCommands(configDir);
+  } catch (e) {
+    writeLog(configDir, "Failed to deploy loader commands: " + e, true);
   }
 
   writeLog(configDir, "Claude Loader activation complete");
