@@ -38,12 +38,13 @@
   "scripts": {
     "build": "npx tsc --project core-loader/tsconfig.json && npx esbuild core/src/index.ts --bundle --platform=node --format=esm --outfile=core/dist/index.js && npx tsc",
     "prepublishOnly": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && vitest run"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
     "@types/node": "^25.9.1",
     "plugin-updater": "^1.0.21",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.6"
   }
 }
