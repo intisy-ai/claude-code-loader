@@ -12,12 +12,12 @@ Run the one-line installer in your terminal to bootstrap `cc`, configure your gl
 
 ### 🪟 Windows (PowerShell)
 ```powershell
-irm https://raw.githubusercontent.com/intisy/claude-hub/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/intisy-ai/claude-hub/main/scripts/install.ps1 | iex
 ```
 
 ### 🍎 macOS / 🐧 Linux (Bash)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/intisy/claude-hub/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/intisy-ai/claude-hub/main/scripts/install.sh | sh
 ```
 
 ---
@@ -59,11 +59,11 @@ Your plugins are tracked cleanly in `~/.claude/config/plugins.json`. You can sha
 [
   {
     "name": "claude-hub",
-    "url": "https://github.com/intisy/claude-hub"
+    "url": "https://github.com/intisy-ai/claude-hub"
   },
   {
     "name": "claude-antigravity-auth",
-    "url": "https://github.com/intisy/claude-antigravity-auth"
+    "url": "https://github.com/intisy-ai/claude-antigravity-auth"
   }
 ]
 ```

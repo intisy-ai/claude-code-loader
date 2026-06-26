@@ -8,7 +8,7 @@
   "author": "intisy",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/intisy/claude-code-loader.git"
+    "url": "git+https://github.com/intisy-ai/claude-code-loader.git"
   },
   "keywords": [
     "claude",
