@@ -79,7 +79,7 @@ function listPlugins(configDir) {
 }
 
 function listAccounts(configDir) {
-  for (const p of [join(configDir, "config", "core-auth-accounts.json"), join(configDir, "core-auth-accounts.json")]) {
+  for (const p of [join(configDir, "config", "accounts.json"), join(configDir, "accounts.json"), join(configDir, "config", "core-auth-accounts.json"), join(configDir, "core-auth-accounts.json")]) {
     if (!existsSync(p)) continue;
     try {
       const store = JSON.parse(readFileSync(p, "utf8"));
