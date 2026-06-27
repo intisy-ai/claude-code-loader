@@ -5,10 +5,13 @@ import { fileURLToPath, pathToFileURL } from "url";
 // @ts-ignore — generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
 // @ts-ignore — generated bundle, no .d.ts
-import { makeWriteLog, ensureConfig } from "../core/dist/index.js";
+import { makeWriteLog, defineConfig } from "../core/dist/index.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
+// Register config defaults BEFORE the CLI guard so `config schema` sees them (no write).
+defineConfig("claude-code-loader", { logging: true });
+
 if (await maybeRunCli(getAppConfigDir())) {
   process.exit(0);
 }
@@ -189,7 +192,6 @@ export async function cleanup(configDir?: string) {
 
 export async function activate() {
   const configDir = getAppConfigDir();
-  try { ensureConfig("claude-code-loader", { logging: true }, configDir); } catch { /* best-effort */ }
   writeLog(configDir, "Claude Loader activating");
 
   try {
