@@ -73,6 +73,8 @@ Deployed automatically on activation to Claude's command directory (`~/.claude/c
 
 ## Configuration
 
+> Config files are **auto-created with defaults on first run** (via core `ensureConfig`). **Global console logging** for every plugin is toggled in `config/settings.json` (`logConsole: true`, the opencode.json-equivalent).
+
 Config file: `~/.claude/config/claude-code-loader.json` (preferred) or `~/.claude/claude-code-loader.json` (fallback).
 
 | Key | Type | Default | Description |
