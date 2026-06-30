@@ -33,12 +33,15 @@ function writeConfig(cfg) {
   } catch {}
 }
 
-// the live catalog core-auth fetched per provider (configDir/config/core-auth-models.json)
+// the live catalog core-auth fetched per provider (configDir/config/models.json;
+// falls back to the pre-rename core-auth-models.json during the transition)
 function modelCache() {
-  try {
-    const p = join(configDir(), "config", "core-auth-models.json");
-    if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")) || {};
-  } catch {}
+  for (const f of ["models.json", "core-auth-models.json"]) {
+    try {
+      const p = join(configDir(), "config", f);
+      if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")) || {};
+    } catch {}
+  }
   return {};
 }
 
