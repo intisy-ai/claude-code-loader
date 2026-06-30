@@ -10,7 +10,14 @@ import { makeWriteLog, defineConfig } from "../core/dist/index.js";
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
 // Register config defaults BEFORE the CLI guard so `config schema` sees them (no write).
-defineConfig("claude-code-loader", { logging: true });
+defineConfig("claude-code-loader", {
+  logging: true,
+  auto_update_check: true,
+  update_check_delay_ms: 1500,
+  update_check_interval_hours: 24,
+  catalog_cache_hours: 6,
+  default_tab: "projects",
+});
 
 if (await maybeRunCli(getAppConfigDir())) {
   process.exit(0);
