@@ -11,4 +11,5 @@ runPluginContract({
   commands: ["claude-code-loader-config", "plugins", "accounts"],
   deploy: { module: "dist/commands.js", fn: "deployLoaderCommands", arg: "claude" },
   actions: [["plugins"], ["accounts"]],
+  readme: true,
 });

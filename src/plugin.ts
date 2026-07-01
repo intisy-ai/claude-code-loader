@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 // @ts-ignore — generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
 // @ts-ignore — generated bundle, no .d.ts
-import { makeWriteLog, defineConfig } from "../core/dist/index.js";
+import { makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -18,6 +18,75 @@ defineConfig("claude-code-loader", {
   catalog_cache_hours: 6,
   default_tab: "projects",
 });
+
+defineReadme({
+  description:
+    "TUI launcher and `cc` shell command for [Claude Code](https://github.com/anthropics/claude-code). " +
+    "It installs a `cc` command that opens an interactive TUI for switching projects, managing plugins, " +
+    "and signing in to providers, and runs an always-on local **proxy** that routes Claude requests through " +
+    "provider accounts (e.g. claude-code-auth subscription accounts, antigravity) with rate-limit failover. " +
+    "It also drives [plugin-updater](https://github.com/intisy-ai/plugin-updater) on startup.",
+  architecture: `flowchart TD
+    START[Claude Code startup] -->|activate| PLUGIN[plugin.js]
+    PLUGIN -->|earlyLaunch| UPDATER[plugin-updater]
+    PLUGIN -->|install| CCBIN["cc / cc.cmd in ~/.local/bin"]
+    PLUGIN -->|deployCommands| CMDS["/claude-code-loader-config, /plugins, /accounts"]
+    DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(core-auth providers)]
+    CCBIN -->|run cc| TUI["core-loader TUI (bun run tui.js)"]
+    CCBIN -->|"cc auth"| AUTH[auth-login.js — provider + account menu]
+    CCBIN -->|"ANTHROPIC_BASE_URL=:34567"| DAEMON
+    TUI --> PROV[Providers tab — tui-extension.js]`,
+  structure: {
+    src: [
+      "`plugin.ts` — the Claude Code plugin entry (`activate`/`cleanup`); installs the `cc` wrapper, runs plugin-updater, deploys commands. Also acts as the command CLI (`node plugin.js <config|plugins|accounts>`).",
+      "`proxy.ts` — the always-on proxy daemon (`claudeHub.daemon`, port 34567) that routes Claude requests through provider accounts.",
+      "`auth-login.ts` — `cc auth` provider selector + account menu.",
+      "`tui-extension.ts` — the custom Providers/model-mapping tab.",
+      "`commands.ts` — cross-app slash-command definitions + their CLI actions.",
+    ],
+    dist: [
+      "`plugin.js` — compiled plugin entry.",
+      "`proxy.js` — compiled proxy daemon.",
+      "`auth-login.js` — compiled auth-login helper.",
+      "`tui-extension.js` — compiled Providers tab extension.",
+      "`commands.js` — compiled command definitions.",
+    ],
+  },
+  commands: [
+    { name: "claude-code-loader-config", description: "View/change loader config (`claude-code-loader.json`): `list`, `get <key>`, `set <key> <value>`. 100% of the config is reachable here.", argumentHint: "list | get <key> | set <key> <value>" },
+    { name: "plugins", description: "List the loader-managed plugins and their state (from `plugins.json`)." },
+    { name: "accounts", description: "List signed-in accounts across all providers (from the core-auth store)." },
+  ],
+  dependencies: [
+    "core-loader",
+    "core",
+    "plugin-updater",
+    "Bun",
+    "core-auth provider (e.g. claude-code-auth)",
+  ],
+  extraSections: [
+    {
+      id: "requirements",
+      title: "Requirements",
+      after: "structure",
+      body: "- [Bun](https://bun.sh/) runtime (the TUI and proxy run under Bun).",
+    },
+    {
+      id: "usage",
+      title: "Usage",
+      after: "installation",
+      body:
+        "```bash\n" +
+        "cc              # Launch the TUI\n" +
+        "cc auth         # Provider selector + account menu (sign in to claude-code-auth, antigravity, …)\n" +
+        "cc <project>    # Open a project directly\n" +
+        "```\n\n" +
+        "The `cc` wrapper points `ANTHROPIC_BASE_URL` at the local proxy (`http://127.0.0.1:34567`) only when the proxy is healthy, so plain `claude` usage is never broken when the loader is absent.",
+    },
+  ],
+});
+
+if (maybeRunReadmeCli("claude-code-loader")) process.exit(0);
 
 if (await maybeRunCli(getAppConfigDir())) {
   process.exit(0);

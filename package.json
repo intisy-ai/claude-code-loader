@@ -37,6 +37,7 @@
   },
   "scripts": {
     "build": "npx tsc --project core-loader/tsconfig.json && npx esbuild core/src/index.ts --bundle --platform=node --format=esm --outfile=core/dist/index.js && npx tsc && node build.mjs",
+    "postbuild": "node dist/plugin.js readme",
     "prepublishOnly": "npm run build",
     "test": "npm run build && vitest run"
   },
