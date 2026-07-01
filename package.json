@@ -1,6 +1,6 @@
 {
   "name": "claude-code-loader",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "TUI launcher and cc shell command for Claude Code.",
   "main": "dist/plugin.js",
   "type": "module",
