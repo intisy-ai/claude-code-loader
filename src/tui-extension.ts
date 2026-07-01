@@ -141,14 +141,14 @@ const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: ""
 // model row + category header share the same left inset (text at column 4); the
 // selection ">" sits in the gutter to the left so text never shifts.
 function modelRow(h, e, sel) {
-  const gutter = sel ? (h.YELLOW + "> " + h.RST) : "  ";
+  const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
   const body = sel ? (h.BG_SEL + h.BOLD + h.WHITE) : h.GRAY;
   h.pushBody("  " + gutter + body + e.model + h.RST + h.GRAY + "  " + e.name + h.RST, sel);
 }
 function catHeader(h, label, first) {
   if (!first) h.pushBody("", false);          // newline between categories
   // bold + a distinct colour: bold alone is invisible on bright-black (GRAY)
-  h.pushBody("    " + h.BOLD + h.CYAN + label + h.RST, false);
+  h.pushBody("    " + h.BOLD + h.ACCENT + label + h.RST, false);
 }
 
 function renderList(h, title, built) {
@@ -162,7 +162,7 @@ function renderList(h, title, built) {
   if (favs.length) { catHeader(h, "Favorites", first); first = false; rows(favs); }
   for (const g of groups) { catHeader(h, g.provider, first); first = false; rows(g.items); }
   h.pushBody("", false);
-  h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
+  h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
   h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab Favorite   Esc Back" + h.RST);
 }
 
@@ -175,8 +175,8 @@ function renderSlots(h) {
   SLOTS.forEach((slot, i) => {
     const sel = tab.cursor === i;
     const a = map[slot.key];
-    const value = a && a.provider ? (h.CYAN + a.provider + " / " + a.model + h.RST) : (h.DIM + "(unset)" + h.RST);
-    const gutter = sel ? (h.YELLOW + "> " + h.RST) : "  ";
+    const value = a && a.provider ? (h.ACCENT + a.provider + " / " + a.model + h.RST) : (h.DIM + "(unset)" + h.RST);
+    const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
   });
   h.pushBody("", false);
@@ -184,11 +184,11 @@ function renderSlots(h) {
   if (provs.length === 0) h.pushBody("    " + h.GRAY + "None installed." + h.RST, false);
   provs.forEach((p, j) => {
     const sel = tab.cursor === SLOTS.length + j;
-    const gutter = sel ? (h.YELLOW + "> " + h.RST) : "  ";
+    const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + p.name + h.RST + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, sel);
   });
   h.pushBody("", false);
-  h.pushFoot("  " + h.GRAY + "-".repeat(h.barW) + h.RST);
+  h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
   h.pushFoot("  " + h.DIM + "^v Move   Enter Open   a Accounts   Tab Switch   Q Quit" + h.RST);
 }
 
