@@ -167,6 +167,7 @@ function installCcWrapper(configDir: string) {
   // the custom Providers/model-mapping tab; runs from the repo clone's dist/
   const extPath = join(configDir, "repos", "claude-code-loader", "dist", "tui-extension.js");
   const authPath = join(configDir, "repos", "claude-code-loader", "dist", "auth-login.js");
+  const proxyPath = join(configDir, "repos", "claude-code-loader", "dist", "proxy.js");
   const tuiCandidates = [
     // core-loader is the post-rename location; the bare "core" path remains as a
     // fallback so already-deployed (pre-rename) installs keep resolving the TUI.
@@ -187,6 +188,10 @@ function installCcWrapper(configDir: string) {
       `set "HUB_TUI_EXTENSION=${extPath}"`,
       'set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567"',
       'set "ANTHROPIC_API_KEY=sk-ant-loader-proxy"',
+      // start the loader proxy daemon if it isn't already answering, so CC has a
+      // proxy to reach when it launches (never blocks; failure is harmless).
+      'curl -sf -o NUL --max-time 1 "http://127.0.0.1:34567/health" >NUL 2>&1',
+      `if errorlevel 1 ( if exist "${proxyPath}" ( where bun >NUL 2>&1 && start "" /b bun run "${proxyPath}" >NUL 2>&1 ) )`,
       'set "_args=%*"',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if "%1"=="auth" ( if exist "${authPath}" ( bun run "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
@@ -207,19 +212,24 @@ function installCcWrapper(configDir: string) {
       'export HUB_CLI_CMD="claude"',
       'export HUB_NPM_PKG="@anthropic-ai/claude-code"',
       `export HUB_TUI_EXTENSION="${extPath}"`,
-      // route through the always-on loader proxy so login/onboarding is skipped;
-      // only when it answers, so a missing proxy never breaks plain cc usage
-      'if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:34567/health" 2>/dev/null; then',
-      '  export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"',
-      '  export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-loader-proxy}"',
-      'fi',
+      // route through the always-on loader proxy so login/onboarding is skipped.
+      // start it if it's down (non-blocking here), then re-check + export the env
+      // right before each `exec claude` so the decision reflects the daemon's
+      // actual state at launch — never the stale state at wrapper start.
+      // a missing/unstartable proxy simply leaves the env unset (plain cc usage).
+      'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
+      `HUB_PROXY_JS="${proxyPath}"`,
+      'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
+      'start_proxy_if_down() { if ! hub_proxy_up && [ -f "$HUB_PROXY_JS" ] && command -v bun >/dev/null 2>&1; then (setsid bun run "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup bun run "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
+      'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-loader-proxy}"; fi; }',
+      'start_proxy_if_down',
       'TUI=""',
       "for candidate in \\",
       ...tuiCandidates.map((candidate, index) =>
         `  "${candidate}"${index < tuiCandidates.length - 1 ? " \\" : "; do"}`),
       '  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi',
       "done",
-      'if [ -z "$TUI" ] || ! command -v bun >/dev/null 2>&1; then exec claude "$@"; fi',
+      'if [ -z "$TUI" ] || ! command -v bun >/dev/null 2>&1; then ensure_proxy; exec claude "$@"; fi',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if [ "$1" = "auth" ]; then if [ -f "${authPath}" ]; then exec bun run "${authPath}"; else export HUB_OPEN_TAB="providers"; set --; fi; fi`,
       'export CC_OUTPUT="${TEMP:-${TMPDIR:-/tmp}}/cc-dir-$$.txt"',
@@ -227,12 +237,12 @@ function installCcWrapper(configDir: string) {
       "EXIT=$?",
       'if [ $EXIT -eq 42 ]; then',
       '  rm -f "$CC_OUTPUT"',
-      '  exec claude "$@"',
+      '  ensure_proxy; exec claude "$@"',
       "fi",
       'if [ $EXIT -eq 0 ] && [ -f "$CC_OUTPUT" ]; then',
       '  DIR=$(cat "$CC_OUTPUT")',
       '  rm -f "$CC_OUTPUT"',
-      '  if [ -n "$DIR" ]; then cd "$DIR" && exec claude; fi',
+      '  if [ -n "$DIR" ]; then cd "$DIR" && ensure_proxy && exec claude; fi',
       "fi",
       'rm -f "$CC_OUTPUT"',
       "exit $EXIT",
