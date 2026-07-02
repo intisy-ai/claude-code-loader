@@ -187,7 +187,9 @@ function installCcWrapper(configDir: string) {
       "set HUB_NPM_PKG=@anthropic-ai/claude-code",
       `set "HUB_TUI_EXTENSION=${extPath}"`,
       'set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567"',
-      'set "ANTHROPIC_API_KEY=sk-ant-loader-proxy"',
+      // AUTH_TOKEN (Bearer), not API_KEY — avoids CC's "approve custom API key" prompt
+      'set "ANTHROPIC_AUTH_TOKEN=sk-ant-loader-proxy"',
+      'set "ANTHROPIC_API_KEY="',
       // start the loader proxy daemon if it isn't already answering, so CC has a
       // proxy to reach when it launches (never blocks; failure is harmless).
       'curl -sf -o NUL --max-time 1 "http://127.0.0.1:34567/health" >NUL 2>&1',
@@ -221,7 +223,11 @@ function installCcWrapper(configDir: string) {
       `HUB_PROXY_JS="${proxyPath}"`,
       'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
       'start_proxy_if_down() { if ! hub_proxy_up && [ -f "$HUB_PROXY_JS" ] && command -v node >/dev/null 2>&1; then (setsid node "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup node "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
-      'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-loader-proxy}"; fi; }',
+      // Use ANTHROPIC_AUTH_TOKEN (Bearer, the gateway/proxy mechanism), NOT
+      // ANTHROPIC_API_KEY — a custom API key triggers CC's "approve this key?"
+      // prompt (and a wrong "No" is remembered with no way back). Clear any API key
+      // so CC sees only the token and routes through the proxy without prompting.
+      'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; unset ANTHROPIC_API_KEY; export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-sk-ant-loader-proxy}"; fi; }',
       'start_proxy_if_down',
       'TUI=""',
       "for candidate in \\",
