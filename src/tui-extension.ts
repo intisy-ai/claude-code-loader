@@ -184,7 +184,7 @@ function renderSlots(h) {
   });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter Models   a Accounts + Quota   Tab Switch   Q Quit" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter Open (tier=assign · provider=accounts)   Tab Switch   Q Quit" + h.RST);
 }
 
 function render(state, h) {
@@ -208,10 +208,14 @@ function handleKey(key, state, tuiApi) {
     if (key === "down" || key === "s") { tab.cursor = (tab.cursor + 1) % total; return; }
     if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "enter" || key === "space") {
-      tab.search = ""; tab.pickCursor = 0;
-      if (tab.cursor < SLOTS.length) { tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "pick"; }
-      else { tab.editingProvider = provs[tab.cursor - SLOTS.length].name; tab.mode = "browse"; }
-      if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(true);
+      if (tab.cursor < SLOTS.length) {
+        // a Claude tier -> assign a provider model
+        tab.search = ""; tab.pickCursor = 0; tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "pick";
+        if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(true);
+      } else {
+        // a provider -> open its account/quota menu in-tab (OpenCode parity)
+        openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi);
+      }
     }
     return;
   }
