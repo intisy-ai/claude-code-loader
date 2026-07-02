@@ -8,6 +8,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 
 const SLOTS = [
   { key: "opus", label: "Opus" },
@@ -100,18 +101,11 @@ function resolveHandlerPath(providerName) {
   return null;
 }
 
-// suspend the loader TUI and run the provider's shared account menu (its menu() export)
+// open the provider's account/quota menu natively in-tab (shared with the
+// OpenCode loader via core-loader's account-menu) — accounts, login, and the
+// combined/per-account quota all render inside the loader chrome.
 function openAccounts(providerName, tuiApi) {
-  const handlerPath = resolveHandlerPath(providerName);
-  if (!handlerPath || !existsSync(handlerPath)) { try { tuiApi.flash("No handler for " + providerName); } catch {} return; }
-  if (!tuiApi.runBlocking) { try { tuiApi.flash("Loader too old — update for account management"); } catch {} return; }
-  tuiApi.runBlocking(async () => {
-    try {
-      const mod = await import(handlerPath);
-      if (typeof mod.menu === "function") await mod.menu();
-      else process.stdout.write(providerName + " has no account menu.\n");
-    } catch (e) { process.stdout.write("Account menu failed: " + (e && e.message || e) + "\n"); }
-  });
+  menu.open(resolveHandlerPath(providerName), tuiApi, providerName);
 }
 
 function groupByProvider(entries) {
@@ -137,6 +131,7 @@ function buildList(entries) {
 }
 
 const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0 };
+const menu = createAccountMenu();
 
 // model row + category header share the same left inset (text at column 4); the
 // selection ">" sits in the gutter to the left so text never shifts.
@@ -189,10 +184,11 @@ function renderSlots(h) {
   });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter Open   a Accounts   Tab Switch   Q Quit" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter Models   a Accounts + Quota   Tab Switch   Q Quit" + h.RST);
 }
 
 function render(state, h) {
+  if (menu.render(h)) return;   // in-tab account/quota menu owns the tab while open
   if (tab.mode === "pick") { const slot = SLOTS.find((s) => s.key === tab.editingSlot); renderList(h, "Assign " + (slot ? slot.label : ""), buildList(allEntries())); }
   else if (tab.mode === "browse") renderList(h, tab.editingProvider + " models", buildList(allEntries().filter((e) => e.provider === tab.editingProvider)));
   else renderSlots(h);
@@ -204,6 +200,7 @@ function currentList() {
 }
 
 function handleKey(key, state, tuiApi) {
+  if (menu.handleKey(key, tuiApi)) return;   // account/quota menu consumes keys while open
   if (tab.mode === "slots") {
     const provs = uniqueProviders();
     const total = SLOTS.length + provs.length;
