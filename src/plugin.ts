@@ -174,6 +174,7 @@ function installCcWrapper(configDir: string) {
     join(configDir, "repos", "claude-code-loader", "core-loader", "dist", "tui.js"),
     join(configDir, "repos", "claude-code-loader", "core", "dist", "tui.js"),
   ];
+  const cliCandidates = tuiCandidates.map((p) => p.replace(/tui\.js$/, "cli.js"));
   writeLog(configDir, "Installing cc wrapper with runtime TUI resolution");
 
   if (process.platform === "win32") {
@@ -190,6 +191,14 @@ function installCcWrapper(configDir: string) {
       // AUTH_TOKEN (Bearer), not API_KEY — avoids CC's "approve custom API key" prompt
       'set "ANTHROPIC_AUTH_TOKEN=sk-ant-loader-proxy"',
       'set "ANTHROPIC_API_KEY="',
+      // non-interactive subcommands dispatch to the node CLI before anything else
+      'set "_iscli="',
+      'if "%1"=="plugins" set "_iscli=1"',
+      'if "%1"=="providers" set "_iscli=1"',
+      'if "%1"=="proxy" set "_iscli=1"',
+      'if "%1"=="doctor" set "_iscli=1"',
+      `if defined _iscli if exist "${cliCandidates[0]}" ( node "${cliCandidates[0]}" %* & exit /b %errorlevel% )`,
+      `if defined _iscli if exist "${cliCandidates[1]}" ( node "${cliCandidates[1]}" %* & exit /b %errorlevel% )`,
       // start the loader proxy daemon if it isn't already answering, so CC has a
       // proxy to reach when it launches (never blocks; failure is harmless).
       'curl -sf -o NUL --max-time 1 "http://127.0.0.1:34567/health" >NUL 2>&1',
@@ -228,6 +237,15 @@ function installCcWrapper(configDir: string) {
       // prompt (and a wrong "No" is remembered with no way back). Clear any API key
       // so CC sees only the token and routes through the proxy without prompting.
       'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; unset ANTHROPIC_API_KEY; export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-sk-ant-loader-proxy}"; fi; }',
+      // non-interactive subcommands dispatch to the node CLI (no bun required)
+      'case "$1" in',
+      '  plugins|providers|proxy|doctor)',
+      "    for c in \\",
+      ...cliCandidates.map((candidate, index) =>
+        `      "${candidate}"${index < cliCandidates.length - 1 ? " \\" : "; do"}`),
+      '      if [ -f "$c" ] && command -v node >/dev/null 2>&1; then exec node "$c" "$@"; fi',
+      "    done ;;",
+      "esac",
       'start_proxy_if_down',
       'TUI=""',
       "for candidate in \\",
