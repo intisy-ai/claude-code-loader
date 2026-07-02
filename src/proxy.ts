@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 // @ts-nocheck
 // Always-on proxy the `cc` wrapper points ANTHROPIC_BASE_URL at; routes each
 // request to the {provider, model} assigned to its Claude tier (opus/sonnet/haiku)
@@ -7,6 +7,8 @@
 import { existsSync, readFileSync, mkdirSync, appendFileSync, readdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { createServer } from "http";
+import { Readable } from "stream";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);
 const CONFIG_DIR = process.env.HUB_CONFIG_DIR
@@ -93,5 +95,36 @@ async function route(request) {
   }
 }
 
-log("Loader proxy listening on 127.0.0.1:" + PORT);
-Bun.serve({ port: PORT, hostname: "127.0.0.1", idleTimeout: 0, fetch: route });
+// Node http server that adapts a node req -> web Request and a web Response ->
+// node res, so the routing/handler contract (web Request in, web Response out)
+// stays identical while the daemon runs under Node (always on PATH, unlike bun).
+const server = createServer((nodeReq, nodeRes) => {
+  const method = (nodeReq.method || "GET").toUpperCase();
+  const skipBody = method === "GET" || method === "HEAD";
+  const chunks = [];
+  nodeReq.on("data", (chunk) => { chunks.push(chunk); });
+  nodeReq.on("end", async () => {
+    try {
+      const bodyBuffer = skipBody ? undefined : Buffer.concat(chunks);
+      const webReq = new Request("http://127.0.0.1:" + PORT + nodeReq.url, {
+        method,
+        headers: nodeReq.headers,
+        body: skipBody ? undefined : bodyBuffer,
+        duplex: "half",
+      });
+      const webRes = await route(webReq);
+      nodeRes.writeHead(webRes.status, Object.fromEntries(webRes.headers));
+      if (webRes.body) {
+        // SSE / streaming responses MUST pipe (never buffer) so streaming works.
+        Readable.fromWeb(webRes.body).pipe(nodeRes);
+      } else {
+        nodeRes.end(Buffer.from(await webRes.arrayBuffer()));
+      }
+    } catch (e) {
+      nodeRes.writeHead(502, { "content-type": "application/json" });
+      nodeRes.end(JSON.stringify({ type: "error", error: { message: String((e && e.message) || e) } }));
+    }
+  });
+});
+
+server.listen(PORT, "127.0.0.1", () => log("Loader proxy listening on 127.0.0.1:" + PORT));

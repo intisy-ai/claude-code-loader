@@ -191,7 +191,7 @@ function installCcWrapper(configDir: string) {
       // start the loader proxy daemon if it isn't already answering, so CC has a
       // proxy to reach when it launches (never blocks; failure is harmless).
       'curl -sf -o NUL --max-time 1 "http://127.0.0.1:34567/health" >NUL 2>&1',
-      `if errorlevel 1 ( if exist "${proxyPath}" ( where bun >NUL 2>&1 && start "" /b bun run "${proxyPath}" >NUL 2>&1 ) )`,
+      `if errorlevel 1 ( if exist "${proxyPath}" ( where node >NUL 2>&1 && start "" /b node "${proxyPath}" >NUL 2>&1 ) )`,
       'set "_args=%*"',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if "%1"=="auth" ( if exist "${authPath}" ( bun run "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
@@ -220,7 +220,7 @@ function installCcWrapper(configDir: string) {
       'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
       `HUB_PROXY_JS="${proxyPath}"`,
       'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
-      'start_proxy_if_down() { if ! hub_proxy_up && [ -f "$HUB_PROXY_JS" ] && command -v bun >/dev/null 2>&1; then (setsid bun run "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup bun run "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
+      'start_proxy_if_down() { if ! hub_proxy_up && [ -f "$HUB_PROXY_JS" ] && command -v node >/dev/null 2>&1; then (setsid node "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup node "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
       'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-sk-ant-loader-proxy}"; fi; }',
       'start_proxy_if_down',
       'TUI=""',

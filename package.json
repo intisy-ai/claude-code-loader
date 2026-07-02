@@ -30,7 +30,7 @@
   "claudeHub": {
     "daemon": {
       "script": "dist/proxy.js",
-      "runtime": "bun",
+      "runtime": "node",
       "port": 34567,
       "healthCheckUrl": "http://127.0.0.1:34567/health"
     }
