@@ -232,7 +232,11 @@ function installCcWrapper(configDir: string) {
       'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
       `HUB_PROXY_JS="${proxyPath}"`,
       'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
-      'start_proxy_if_down() { if ! hub_proxy_up && [ -f "$HUB_PROXY_JS" ] && command -v node >/dev/null 2>&1; then (setsid node "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup node "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
+      // If the proxy is unhealthy but a HUNG instance still holds :34567, a fresh
+      // node would fail to bind (EADDRINUSE) and die — so kill any stale proxy first,
+      // then start. Only runs when hub_proxy_up already failed, so a healthy proxy is
+      // never touched.
+      'start_proxy_if_down() { if hub_proxy_up; then return 0; fi; pkill -f "$HUB_PROXY_JS" 2>/dev/null || fuser -k 34567/tcp 2>/dev/null || true; if [ -f "$HUB_PROXY_JS" ] && command -v node >/dev/null 2>&1; then (setsid node "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup node "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
       // Use ANTHROPIC_AUTH_TOKEN (Bearer, the gateway/proxy mechanism), NOT
       // ANTHROPIC_API_KEY — a custom API key triggers CC's "approve this key?"
       // prompt (and a wrong "No" is remembered with no way back). Clear any API key
