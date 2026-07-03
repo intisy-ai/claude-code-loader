@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 // @ts-ignore — generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
+import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
 // @ts-ignore — generated bundle, no .d.ts
 import { makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
 
@@ -320,6 +321,12 @@ export async function activate() {
     deployLoaderCommands(configDir);
   } catch (e) {
     writeLog(configDir, "Failed to deploy loader commands: " + e, true);
+  }
+
+  try {
+    ensureNotifyDrainHook(configDir);   // PostToolUse hook that surfaces auth notifications to the user
+  } catch (e) {
+    writeLog(configDir, "Failed to register notify drain hook: " + e, true);
   }
 
   writeLog(configDir, "Claude Loader activation complete");
