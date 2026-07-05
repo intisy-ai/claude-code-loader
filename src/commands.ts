@@ -4,7 +4,6 @@
 // shells point at the loader's real runtime entry (where ../core/dist resolves).
 import { join } from "path";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs";
-import { homedir } from "os";
 import { runConfigCli } from "../core/dist/index.js";
 
 const PLUGIN = "claude-code-loader";

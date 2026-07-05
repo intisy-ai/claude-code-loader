@@ -1,7 +1,7 @@
-﻿import { existsSync, writeFileSync, mkdirSync, readFileSync, appendFileSync } from "fs";
-import { join, dirname } from "path";
+﻿import { existsSync, writeFileSync, mkdirSync, readFileSync } from "fs";
+import { join } from "path";
 import { homedir } from "os";
-import { fileURLToPath, pathToFileURL } from "url";
+import { pathToFileURL } from "url";
 // @ts-ignore — generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
 import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
@@ -93,23 +93,7 @@ if (await maybeRunCli(getAppConfigDir())) {
   process.exit(0);
 }
 
-const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
-
-let PLUGIN_CONFIG: Record<string, unknown> | null = null;
-function getPluginConfig(configDir: string): Record<string, unknown> {
-  if (PLUGIN_CONFIG !== null) return PLUGIN_CONFIG;
-  try {
-    const preferred = join(configDir, "config", "claude-code-loader.json");
-    const fallback  = join(configDir, "claude-code-loader.json");
-    const p = existsSync(preferred) ? preferred : existsSync(fallback) ? fallback : null;
-    PLUGIN_CONFIG = p ? JSON.parse(readFileSync(p, "utf-8")) : {};
-  } catch { PLUGIN_CONFIG = {}; }
-  return PLUGIN_CONFIG;
-}
-
-// Delegate to the shared core logger: loader lines get the [claude-code-loader] prefix,
-// per-plugin color, and the GLOBAL console toggle; core also does the file write
-// (respecting claude-code-loader.json `logging`). Signature kept for existing callers.
+// Delegates to the shared core logger (per-plugin prefix/color + GLOBAL console toggle).
 function writeLog(configDir: string, message: string, isError: boolean = false) {
   makeWriteLog("claude-code-loader", configDir)(message, isError);
 }
@@ -121,9 +105,7 @@ function getAppConfigDir() {
   return existsSync(directPath) ? directPath : configPath;
 }
 
-// Resolve plugin-updater the same way in both loaders: the bare specifier first,
-// then known install locations (skipped if absent). A path must be a file:// URL
-// for dynamic import (notably on Windows), hence pathToFileURL.
+// Resolve plugin-updater: bare specifier first, then known install locations.
 async function loadUpdater(): Promise<any> {
   try {
     return await import("plugin-updater");
@@ -164,7 +146,6 @@ function installCcWrapper(configDir: string) {
   const binDir = getBinDir();
   if (!existsSync(binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
 
-  const pluginDir = dirname(fileURLToPath(import.meta.url));
   // the custom Providers/model-mapping tab; runs from the repo clone's dist/
   const extPath = join(configDir, "repos", "claude-code-loader", "dist", "tui-extension.js");
   const authPath = join(configDir, "repos", "claude-code-loader", "dist", "auth-login.js");
