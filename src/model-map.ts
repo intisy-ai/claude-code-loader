@@ -48,7 +48,12 @@ export function catalogEntries(configDir) {
         const provider = p.name || repo;
         const cached = cache[provider] && cache[provider].models;
         if (cached) {
-          for (const model of Object.keys(cached)) out.push({ provider, model, name: (cached[model] && cached[model].name) || model });
+          // ranking (best first) if core-auth computed one, else catalog order
+          const order = (cache[provider].ranking && cache[provider].ranking.length) ? cache[provider].ranking : Object.keys(cached);
+          for (const model of order) {
+            if (!cached[model]) continue;
+            out.push({ provider, model, name: (cached[model] && cached[model].name) || model });
+          }
         } else {
           for (const m of (p.models || [])) {
             const model = typeof m === "string" ? m : m.id;
@@ -70,12 +75,17 @@ export function resolveModelMap(configDir) {
   const stored = readModelMap(configDir);
   const catalog = catalogEntries(configDir).filter((e) => !/-auto$/.test(e.model));
   const has = (provider, model) => catalog.some((e) => e.provider === provider && e.model === model);
-  const derive = (keyword) => catalog.find((e) => e.model.toLowerCase().indexOf(keyword) >= 0) || null;
+  const deriveIn = (entries, keyword) => entries.find((e) => e.model.toLowerCase().indexOf(keyword) >= 0) || null;
 
   const pick = (slot, keyword) => {
     const s = stored[slot];
     if (s && s.provider && s.model && has(s.provider, s.model)) return { provider: s.provider, model: s.model, derived: false };
-    const d = keyword ? derive(keyword) : null;
+    // Re-derive a stale/unset slot. Prefer the provider the user actually chose (only
+    // its model id changed) so a claude-code slot heals to the current claude-code
+    // model for this tier — NOT another provider that merely also has an "opus".
+    // Catalog order is the provider's ranking, so the first keyword match is the best.
+    const inProvider = s && s.provider ? catalog.filter((e) => e.provider === s.provider) : [];
+    const d = deriveIn(inProvider, keyword) || deriveIn(catalog, keyword);
     return d ? { provider: d.provider, model: d.model, derived: true } : null;
   };
 
