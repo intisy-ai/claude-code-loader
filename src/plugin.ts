@@ -151,11 +151,35 @@ function installCcWrapper(configDir: string) {
       'set "_args=%*"',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if "%1"=="auth" ( if exist "${authPath}" ( node "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
+      // The TUI writes the chosen project dir (line 1) + optional session id (line 2)
+      // to this file; we read it back after the TUI exits and launch claude there.
+      'set "CC_OUTPUT=%TEMP%\\cc-dir-%RANDOM%%RANDOM%.txt"',
+      'set "_TUI="',
     ];
     for (const candidate of tuiCandidates) {
-      cmdLines.push(`if exist "${candidate}" ( node "${candidate}" %_args% & exit /b %errorlevel% )`);
+      cmdLines.push(`if not defined _TUI if exist "${candidate}" set "_TUI=${candidate}"`);
     }
-    cmdLines.push("claude %*");
+    cmdLines.push(
+      // No TUI available -> plain passthrough.
+      'if not defined _TUI ( claude %* & exit /b %errorlevel% )',
+      'node "%_TUI%" %_args%',
+      'set "EXIT=%errorlevel%"',
+      // 42 = "New session here": forward the user's own args, like the sh wrapper.
+      'if "%EXIT%"=="42" ( del "%CC_OUTPUT%" 2>NUL & claude %* & exit /b %errorlevel% )',
+      'if not "%EXIT%"=="0" ( del "%CC_OUTPUT%" 2>NUL & exit /b %EXIT% )',
+      'if not exist "%CC_OUTPUT%" ( exit /b %EXIT% )',
+      'set "DIR="',
+      'set /p DIR=<"%CC_OUTPUT%"',
+      // second line (session id) via `more +1`; empty when the file has one line.
+      'set "SESSION="',
+      'more +1 "%CC_OUTPUT%" > "%CC_OUTPUT%.2" 2>NUL',
+      'set /p SESSION=<"%CC_OUTPUT%.2"',
+      'del "%CC_OUTPUT%" "%CC_OUTPUT%.2" 2>NUL',
+      'if "%DIR%"=="" ( exit /b %EXIT% )',
+      'cd /d "%DIR%"',
+      'if not "%SESSION%"=="" ( claude --resume "%SESSION%" & exit /b %errorlevel% )',
+      'claude & exit /b %errorlevel%'
+    );
     writeFileSync(cmdPath, cmdLines.join("\r\n") + "\r\n", "utf-8");
     try { const fs = require("fs"); fs.unlinkSync(join(binDir, "cc")); } catch {}
   } else {
@@ -223,9 +247,13 @@ function installCcWrapper(configDir: string) {
       '  ensure_proxy; exec claude "$@"',
       "fi",
       'if [ $EXIT -eq 0 ] && [ -f "$CC_OUTPUT" ]; then',
-      '  DIR=$(cat "$CC_OUTPUT")',
+      '  DIR=$(sed -n 1p "$CC_OUTPUT")',
+      '  SESSION=$(sed -n 2p "$CC_OUTPUT")',
       '  rm -f "$CC_OUTPUT"',
-      '  if [ -n "$DIR" ]; then cd "$DIR" && ensure_proxy && exec claude; fi',
+      '  if [ -n "$DIR" ]; then',
+      '    cd "$DIR" && ensure_proxy',
+      '    if [ -n "$SESSION" ]; then exec claude --resume "$SESSION"; else exec claude; fi',
+      '  fi',
       "fi",
       'rm -f "$CC_OUTPUT"',
       "exit $EXIT",
