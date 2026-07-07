@@ -176,7 +176,13 @@ function installCcWrapper(configDir: string) {
       'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
       `HUB_PROXY_JS="${proxyPath}"`,
       `HUB_MODEL_ENV_JS="${modelEnvPath}"`,
+      'HUB_PROXY_MARKER="$HUB_CONFIG_DIR/logs/.proxy-started"',
       'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
+      // A healthy daemon is never restarted by start_proxy_if_down, so a rebuilt
+      // proxy.js (newer than the running daemon\'s start-marker) would never take
+      // effect. Kill the stale daemon here so start_proxy_if_down relaunches the new
+      // code; the fresh daemon re-stamps the marker on listen.
+      'restart_proxy_if_stale() { if [ -f "$HUB_PROXY_JS" ] && [ "$HUB_PROXY_JS" -nt "$HUB_PROXY_MARKER" ]; then pkill -f "$HUB_PROXY_JS" 2>/dev/null || fuser -k 34567/tcp 2>/dev/null || true; rm -f "$HUB_PROXY_MARKER" 2>/dev/null || true; fi; }',
       // If the proxy is unhealthy but a HUNG instance still holds :34567, a fresh
       // node would fail to bind (EADDRINUSE) and die — so kill any stale proxy first,
       // then start. Only runs when hub_proxy_up already failed, so a healthy proxy is
@@ -189,7 +195,7 @@ function installCcWrapper(configDir: string) {
       // On launch (proxy confirmed up) also inject the mapped models as
       // ANTHROPIC_DEFAULT_*_MODEL so /model lists them as custom Opus/Sonnet/Haiku
       // entries; model-env.js emits single-quote-safe `export KEY='value'` lines.
-      'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; unset ANTHROPIC_API_KEY; export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-sk-ant-loader-proxy}"; if [ -f "$HUB_MODEL_ENV_JS" ] && command -v node >/dev/null 2>&1; then eval "$(node "$HUB_MODEL_ENV_JS" sh 2>/dev/null)"; fi; fi; }',
+      'ensure_proxy() { restart_proxy_if_stale; if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; unset ANTHROPIC_API_KEY; export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-sk-ant-loader-proxy}"; if [ -f "$HUB_MODEL_ENV_JS" ] && command -v node >/dev/null 2>&1; then eval "$(node "$HUB_MODEL_ENV_JS" sh 2>/dev/null)"; fi; fi; }',
       // non-interactive subcommands dispatch to the node CLI (no bun required)
       'case "$1" in',
       '  plugins|providers|proxy|doctor)',

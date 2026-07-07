@@ -4,7 +4,7 @@
 // request to the {provider, model} assigned to its Claude tier (opus/sonnet/haiku)
 // in the loader config, discovered from repos/ via claudeHub.authProviders.
 
-import { existsSync, readFileSync, mkdirSync, appendFileSync } from "fs";
+import { existsSync, readFileSync, mkdirSync, appendFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createServer } from "http";
@@ -136,4 +136,16 @@ const server = createServer((nodeReq, nodeRes) => {
   });
 });
 
-server.listen(PORT, "127.0.0.1", () => log("Loader proxy listening on 127.0.0.1:" + PORT));
+// Stamp a start-marker with THIS daemon's launch time. The cc wrapper compares
+// proxy.js's mtime against it and restarts the daemon when proxy.js is newer — a
+// healthy daemon is otherwise never replaced, so proxy/handler code fixes would only
+// take effect after a manual kill or a machine reboot.
+function stampStartMarker() {
+  try {
+    const logsDir = join(CONFIG_DIR, "logs");
+    if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+    writeFileSync(join(logsDir, ".proxy-started"), new Date().toISOString());
+  } catch {}
+}
+
+server.listen(PORT, "127.0.0.1", () => { stampStartMarker(); log("Loader proxy listening on 127.0.0.1:" + PORT); });
