@@ -33,7 +33,7 @@ defineReadme({
     PLUGIN -->|install| CCBIN["cc / cc.cmd in ~/.local/bin"]
     PLUGIN -->|deployCommands| CMDS["/claude-code-loader-config, /plugins, /accounts"]
     DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(core-auth providers)]
-    CCBIN -->|run cc| TUI["core-loader TUI (bun run tui.js)"]
+    CCBIN -->|run cc| TUI["core-loader TUI (node tui.js)"]
     CCBIN -->|"cc auth"| AUTH[auth-login.js — provider + account menu]
     CCBIN -->|"ANTHROPIC_BASE_URL=:34567"| DAEMON
     TUI --> PROV[Providers tab — tui-extension.js]`,
@@ -70,7 +70,7 @@ defineReadme({
       id: "requirements",
       title: "Requirements",
       after: "structure",
-      body: "- [Bun](https://bun.sh/) runtime (the TUI and proxy run under Bun).",
+      body: "- Node.js 20+ (the TUI, proxy, and CLI all run under Node — no Bun required; Node 22+'s built-in `node:sqlite` reads the session DB, with `bun:sqlite` as a fallback when run under Bun).",
     },
     {
       id: "usage",
@@ -150,10 +150,10 @@ function installCcWrapper(configDir: string) {
       `if exist "${modelEnvPath}" ( for /f "usebackq tokens=1* delims==" %%A in (\`node "${modelEnvPath}" cmd 2^>NUL\`) do set "%%A=%%B" )`,
       'set "_args=%*"',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
-      `if "%1"=="auth" ( if exist "${authPath}" ( bun run "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
+      `if "%1"=="auth" ( if exist "${authPath}" ( node "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
     ];
     for (const candidate of tuiCandidates) {
-      cmdLines.push(`if exist "${candidate}" ( bun run "${candidate}" %_args% & exit /b %errorlevel% )`);
+      cmdLines.push(`if exist "${candidate}" ( node "${candidate}" %_args% & exit /b %errorlevel% )`);
     }
     cmdLines.push("claude %*");
     writeFileSync(cmdPath, cmdLines.join("\r\n") + "\r\n", "utf-8");
@@ -212,11 +212,11 @@ function installCcWrapper(configDir: string) {
         `  "${candidate}"${index < tuiCandidates.length - 1 ? " \\" : "; do"}`),
       '  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi',
       "done",
-      'if [ -z "$TUI" ] || ! command -v bun >/dev/null 2>&1; then ensure_proxy; exec claude "$@"; fi',
+      'if [ -z "$TUI" ] || ! command -v node >/dev/null 2>&1; then ensure_proxy; exec claude "$@"; fi',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
-      `if [ "$1" = "auth" ]; then if [ -f "${authPath}" ]; then exec bun run "${authPath}"; else export HUB_OPEN_TAB="providers"; set --; fi; fi`,
+      `if [ "$1" = "auth" ]; then if [ -f "${authPath}" ]; then exec node "${authPath}"; else export HUB_OPEN_TAB="providers"; set --; fi; fi`,
       'export CC_OUTPUT="${TEMP:-${TMPDIR:-/tmp}}/cc-dir-$$.txt"',
-      'bun run "$TUI" "$@"',
+      'node "$TUI" "$@"',
       "EXIT=$?",
       'if [ $EXIT -eq 42 ]; then',
       '  rm -f "$CC_OUTPUT"',

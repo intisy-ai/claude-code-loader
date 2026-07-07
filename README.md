@@ -15,7 +15,7 @@ flowchart TD
     PLUGIN -->|install| CCBIN["cc / cc.cmd in ~/.local/bin"]
     PLUGIN -->|deployCommands| CMDS["/claude-code-loader-config, /plugins, /accounts"]
     DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(core-auth providers)]
-    CCBIN -->|run cc| TUI["core-loader TUI (bun run tui.js)"]
+    CCBIN -->|run cc| TUI["core-loader TUI (node tui.js)"]
     CCBIN -->|"cc auth"| AUTH[auth-login.js — provider + account menu]
     CCBIN -->|"ANTHROPIC_BASE_URL=:34567"| DAEMON
     TUI --> PROV[Providers tab — tui-extension.js]
@@ -38,7 +38,7 @@ flowchart TD
 
 ## Requirements
 
-- [Bun](https://bun.sh/) runtime (the TUI and proxy run under Bun).
+- Node.js 20+ (the TUI, proxy, and CLI all run under Node — no Bun required; Node 22+'s built-in `node:sqlite` reads the session DB, with `bun:sqlite` as a fallback when run under Bun).
 
 ## Installation
 
