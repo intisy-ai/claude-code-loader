@@ -161,11 +161,11 @@ function installCcWrapper(configDir: string) {
     }
     cmdLines.push(
       // No TUI available -> plain passthrough.
-      'if not defined _TUI ( claude %* & exit /b %errorlevel% )',
+      'if not defined _TUI ( claude %* & goto :eof )',
       'node "%_TUI%" %_args%',
       'set "EXIT=%errorlevel%"',
       // 42 = "New session here": forward the user's own args, like the sh wrapper.
-      'if "%EXIT%"=="42" ( del "%CC_OUTPUT%" 2>NUL & claude %* & exit /b %errorlevel% )',
+      'if "%EXIT%"=="42" ( del "%CC_OUTPUT%" 2>NUL & claude %* & goto :eof )',
       'if not "%EXIT%"=="0" ( del "%CC_OUTPUT%" 2>NUL & exit /b %EXIT% )',
       'if not exist "%CC_OUTPUT%" ( exit /b %EXIT% )',
       'set "DIR="',
@@ -177,8 +177,9 @@ function installCcWrapper(configDir: string) {
       'del "%CC_OUTPUT%" "%CC_OUTPUT%.2" 2>NUL',
       'if "%DIR%"=="" ( exit /b %EXIT% )',
       'cd /d "%DIR%"',
-      'if not "%SESSION%"=="" ( claude --resume "%SESSION%" & exit /b %errorlevel% )',
-      'claude & exit /b %errorlevel%'
+      'if errorlevel 1 exit /b 1',
+      'if not "%SESSION%"=="" ( claude --resume "%SESSION%" ) else ( claude )',
+      'exit /b %errorlevel%'
     );
     writeFileSync(cmdPath, cmdLines.join("\r\n") + "\r\n", "utf-8");
     try { const fs = require("fs"); fs.unlinkSync(join(binDir, "cc")); } catch {}
@@ -251,7 +252,8 @@ function installCcWrapper(configDir: string) {
       '  SESSION=$(sed -n 2p "$CC_OUTPUT")',
       '  rm -f "$CC_OUTPUT"',
       '  if [ -n "$DIR" ]; then',
-      '    cd "$DIR" && ensure_proxy',
+      '    cd "$DIR" || exit 1',
+      '    ensure_proxy',
       '    if [ -n "$SESSION" ]; then exec claude --resume "$SESSION"; else exec claude; fi',
       '  fi',
       "fi",
