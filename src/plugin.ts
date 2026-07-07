@@ -168,8 +168,11 @@ function installCcWrapper(configDir: string) {
       'if "%EXIT%"=="42" ( del "%CC_OUTPUT%" 2>NUL & claude %* & goto :eof )',
       'if not "%EXIT%"=="0" ( del "%CC_OUTPUT%" 2>NUL & exit /b %EXIT% )',
       'if not exist "%CC_OUTPUT%" ( exit /b %EXIT% )',
+      // Read both lines via `for /f` (NOT `set /p`): the TUI writes LF-only endings,
+      // which `set /p` mishandles (leaks the LF into DIR, breaking the path); `for /f`
+      // reads each line cleanly and preserves backslashes. Verified on Windows.
       'set "DIR="',
-      'set /p DIR=<"%CC_OUTPUT%"',
+      'for /f "usebackq delims=" %%L in ("%CC_OUTPUT%") do if not defined DIR set "DIR=%%L"',
       // second line (session id) via `for /f skip=1`; empty when the file has one line.
       'set "SESSION="',
       'for /f "usebackq skip=1 delims=" %%L in ("%CC_OUTPUT%") do if not defined SESSION set "SESSION=%%L"',
