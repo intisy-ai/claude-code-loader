@@ -4,11 +4,12 @@
 // request to the {provider, model} assigned to its Claude tier (opus/sonnet/haiku)
 // in the loader config, discovered from repos/ via claudeHub.authProviders.
 
-import { existsSync, readFileSync, mkdirSync, appendFileSync, readdirSync } from "fs";
+import { existsSync, readFileSync, mkdirSync, appendFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createServer } from "http";
 import { Readable } from "stream";
+import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);
 const CONFIG_DIR = process.env.HUB_CONFIG_DIR
@@ -51,17 +52,8 @@ async function resolveAssignment(request) {
 let HANDLER_CACHE = {};
 function resolveHandler(providerName) {
   if (HANDLER_CACHE[providerName] !== undefined) return HANDLER_CACHE[providerName];
-  let resolved = null;
-  try {
-    for (const repo of readdirSync(REPOS_DIR)) {
-      try {
-        const pkg = JSON.parse(readFileSync(join(REPOS_DIR, repo, "package.json"), "utf8"));
-        const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-        const match = declared.find((p) => (p.name || repo) === providerName);
-        if (match && match.handler) { resolved = join(REPOS_DIR, repo, match.handler); break; }
-      } catch {}
-    }
-  } catch {}
+  const match = readDeployedProviders(REPOS_DIR).find((p) => p.provider === providerName);
+  const resolved = match ? match.handlerPath : null;
   HANDLER_CACHE[providerName] = resolved;
   return resolved;
 }

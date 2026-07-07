@@ -14,8 +14,11 @@ const banner = {
 // tui-extension.ts is loaded in isolation via HUB_TUI_EXTENSION from the repo's
 // dist dir; it imports core-loader's shared account-menu, so it must be bundled
 // self-contained too (tsc left an unresolvable ../core-loader/dist import).
+// proxy.ts is the always-on daemon (run standalone via `node dist/proxy.js`); it now
+// imports core-loader's shared readDeployedProviders, so it must be bundled too to
+// stay a single self-contained file with no runtime cross-submodule dependency.
 await build({
-  entryPoints: ["src/plugin.ts", "src/tui-extension.ts"],
+  entryPoints: ["src/plugin.ts", "src/tui-extension.ts", "src/proxy.ts"],
   bundle: true,
   platform: "node",
   format: "esm",
@@ -24,4 +27,4 @@ await build({
   logLevel: "info",
 });
 
-console.log("Bundled loader plugin -> dist/plugin.js, dist/tui-extension.js");
+console.log("Bundled loader plugin -> dist/plugin.js, dist/tui-extension.js, dist/proxy.js");
