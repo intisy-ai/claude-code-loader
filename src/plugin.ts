@@ -4,7 +4,7 @@ import { join } from "path";
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
 import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
 // @ts-ignore — generated bundle, no .d.ts
-import { getBinDir, runEarlyLaunchHooks } from "../core-loader/dist/loader-runtime.js";
+import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dist/loader-runtime.js";
 // @ts-ignore — generated bundle, no .d.ts
 import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
 
@@ -102,6 +102,7 @@ function writeLog(configDir: string, message: string, isError: boolean = false) 
 function installCcWrapper(configDir: string) {
   const binDir = getBinDir();
   if (!existsSync(binDir)) try { mkdirSync(binDir, { recursive: true }); } catch {}
+  ensureOnPath(binDir, (m) => writeLog(configDir, m));
 
   // the custom Providers/model-mapping tab; runs from the repo clone's dist/
   const extPath = join(configDir, "repos", "claude-code-loader", "dist", "tui-extension.js");
@@ -155,7 +156,7 @@ function installCcWrapper(configDir: string) {
   } else {
     const shPath = join(binDir, "cc");
     const lines = [
-      "#!/usr/bin/env bash",
+      "#!/bin/sh",
       'export PATH="$HOME/.bun/bin:$PATH"',
       'export HUB_CONFIG_DIR="$HOME/.claude"',
       'export HUB_APP_NAME="Claude Code"',
