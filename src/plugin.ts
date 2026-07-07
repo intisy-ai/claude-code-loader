@@ -170,11 +170,10 @@ function installCcWrapper(configDir: string) {
       'if not exist "%CC_OUTPUT%" ( exit /b %EXIT% )',
       'set "DIR="',
       'set /p DIR=<"%CC_OUTPUT%"',
-      // second line (session id) via `more +1`; empty when the file has one line.
+      // second line (session id) via `for /f skip=1`; empty when the file has one line.
       'set "SESSION="',
-      'more +1 "%CC_OUTPUT%" > "%CC_OUTPUT%.2" 2>NUL',
-      'set /p SESSION=<"%CC_OUTPUT%.2"',
-      'del "%CC_OUTPUT%" "%CC_OUTPUT%.2" 2>NUL',
+      'for /f "usebackq skip=1 delims=" %%L in ("%CC_OUTPUT%") do if not defined SESSION set "SESSION=%%L"',
+      'del "%CC_OUTPUT%" 2>NUL',
       'if "%DIR%"=="" ( exit /b %EXIT% )',
       'cd /d "%DIR%"',
       'if errorlevel 1 exit /b 1',
