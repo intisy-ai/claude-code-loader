@@ -75,12 +75,31 @@ function rateLimitResetMs(resp) {
   return 0;
 }
 
-// Terminal (non-retryable 400, anthropic error shape) so the client stops its retry
-// loop; message is proxy-generated so it reads the same regardless of which provider(s)
-// the tier maps to.
-function rateLimitTerminal(message) {
-  return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message } }), {
-    status: 400, headers: { "content-type": "application/json", "x-hub-chat-error": "1" },
+// Final response when every model in the chain is rate-limited. Return a NATIVE
+// Anthropic 429 so Claude Code renders its own rate-limit UI ("session/usage limit —
+// resets X") — the same regardless of which provider(s) the tier maps to. Prefer the
+// real upstream 429 (claude-code carries the exact unified-* headers); synthesize the
+// native shape from the reset for a non-claude provider that gave up differently.
+async function rateLimitFinal(lastResp, resetMs) {
+  if (lastResp && lastResp.status === 429) {
+    const headers = Object.fromEntries(lastResp.headers);
+    delete headers["content-encoding"]; delete headers["content-length"];
+    delete headers["x-hub-rate-limited"]; delete headers["x-hub-retry-after-ms"];
+    let buf = null; try { buf = Buffer.from(await lastResp.arrayBuffer()); } catch {}
+    return new Response(buf, { status: 429, headers });
+  }
+  const resetSec = Math.floor((resetMs || Date.now()) / 1000);
+  const retry = Math.max(1, Math.round(((resetMs || Date.now()) - Date.now()) / 1000));
+  return new Response(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "Rate limit exceeded." } }), {
+    status: 429,
+    headers: {
+      "content-type": "application/json",
+      "retry-after": String(retry),
+      "anthropic-ratelimit-unified-status": "rejected",
+      "anthropic-ratelimit-unified-reset": String(resetSec),
+      "anthropic-ratelimit-unified-5h-status": "rejected",
+      "anthropic-ratelimit-unified-5h-reset": String(resetSec),
+    },
   });
 }
 
@@ -139,10 +158,10 @@ async function route(request) {
     return resp; // success or a non-rate-limit error — surface it
   }
 
-  // Every model in the chain was rate-limited (or unavailable).
-  if (resetMs > Date.now()) {
-    const mins = Math.max(1, Math.round((resetMs - Date.now()) / 60000));
-    return rateLimitTerminal("All models mapped to this Claude tier are rate-limited — try again in ~" + mins + "m.");
+  // Every model in the chain was rate-limited (or unavailable) — hand Claude a native
+  // 429 so it renders its own rate-limit UI, consistent across providers.
+  if ((lastResp && lastResp.status === 429) || resetMs > Date.now()) {
+    return await rateLimitFinal(lastResp, resetMs);
   }
   return lastResp || errorResponse(503, "No provider handler available for this Claude tier.");
 }
