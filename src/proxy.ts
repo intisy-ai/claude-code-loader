@@ -96,10 +96,14 @@ async function rateLimitFinal(lastResp, resetMs) {
       if (!Number.isNaN(s) && s * 1000 > reset) reset = s * 1000;
     }
   }
-  const mins = reset > Date.now() ? Math.max(1, Math.round((reset - Date.now()) / 60000)) : 0;
-  const message = mins
-    ? "Rate limit reached — resets in ~" + mins + "m. Add a fallback model in cc -> Providers, or wait."
-    : "Rate limit reached. Try again later, or add a fallback model in cc -> Providers.";
+  // Mimic Claude Code's own rate-limit wording (absolute reset time). NOTE: Claude
+  // still prepends "API Error: Request rejected (429) · " for any proxied 429 — that
+  // prefix is Claude's, not ours, and can't be removed while routing through the proxy.
+  let when = null;
+  try { if (reset > Date.now()) when = new Date(reset).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch {}
+  const message = when
+    ? "You've hit your usage limit · resets at " + when
+    : "You've hit your usage limit · try again later";
   headers["content-type"] = "application/json";
   headers["retry-after"] = String(reset > Date.now() ? Math.round((reset - Date.now()) / 1000) : 60);
   if (!headers["anthropic-ratelimit-unified-status"]) headers["anthropic-ratelimit-unified-status"] = "rejected";
