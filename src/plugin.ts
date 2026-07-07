@@ -234,23 +234,16 @@ function installCcWrapper(configDir: string) {
 
 export async function cleanup(configDir?: string) {
   // opencode invokes every exported function as a plugin hook, passing a context
-  // object — return an inert plugin instance then, and only clean up when
-  // plugin-updater calls us with an explicit configDir string
+  // object — return an inert plugin instance in that case.
   if (typeof configDir !== "string") return {};
-  const resolvedConfigDir = configDir;
-  const binDir = getBinDir();
-  const filesToRemove = [join(binDir, "cc"), join(binDir, "cc.cmd")];
-  for (const f of filesToRemove) {
-    try {
-      if (existsSync(f)) {
-        const { unlinkSync } = await import("fs");
-        unlinkSync(f);
-        writeLog(resolvedConfigDir, "cleanup: removed " + f);
-      }
-    } catch (e) {
-      writeLog(resolvedConfigDir, "cleanup: failed to remove " + f + ": " + e, true);
-    }
-  }
+  // Intentionally does NOT remove the cc wrapper. plugin-updater calls cleanup()
+  // before EVERY redeploy; if the (slow, hook-timeout-prone) earlyLaunch process is
+  // killed after the copy but before activate() re-installs the wrapper, removing it
+  // here would leave the user with no `cc` command at all. activate() rewrites the
+  // wrapper idempotently, and the existing wrapper targets stable repo paths so it
+  // keeps working across updates. (A leftover wrapper after a true uninstall is
+  // harmless — it just points at an absent/disabled repo.)
+  return {};
 }
 
 export async function activate() {
