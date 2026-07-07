@@ -42,21 +42,46 @@ function claudeSlot(model) {
   return "default";
 }
 
-// the {provider, model} the cc Providers tab assigned to the request's Claude tier
+// the ORDERED CHAIN [{provider, model}, ...] the cc Providers tab assigned to the
+// request's Claude tier (primary + fallbacks). Healed: stale/unset tiers auto-derive
+// to the current catalog, so routing tracks a model refresh even if never re-assigned.
 async function resolveAssignment(request) {
   let requested = "";
   try { requested = ((await request.clone().json()) || {}).model || ""; } catch {}
-  // Healed mapping: stale/unset tiers auto-derive to the current catalog, so routing
-  // tracks a model refresh even if the stored mapping was never re-assigned.
-  const map = resolveModelMap(CONFIG_DIR);
-  // Exact-id match first: the cc wrapper injects each tier's mapped model id as
+  const map = resolveModelMap(CONFIG_DIR);   // { slot: [ {provider, model, ...}, ... ] }
+  // Exact-id match first: the cc wrapper injects each tier's primary model id as
   // ANTHROPIC_DEFAULT_*_MODEL, so the request model can be a backend id that carries
   // no opus/sonnet/haiku keyword — recover its tier by matching the assigned ids
   // before falling back to keyword classification.
   for (const slot of Object.keys(map)) {
-    if (map[slot] && map[slot].model && map[slot].model === requested) return map[slot];
+    if ((map[slot] || []).some((e) => e.model === requested)) return map[slot];
   }
-  return map[claudeSlot(requested)] || map.default || null;
+  const slot = claudeSlot(requested);
+  return (map[slot] && map[slot].length) ? map[slot] : (map.default || []);
+}
+
+function isRateLimited(resp) {
+  try { return resp.status === 429 || resp.headers.get("x-hub-rate-limited") === "1"; } catch { return resp && resp.status === 429; }
+}
+
+// earliest epoch-ms the response says it'll be usable again (x-hub-retry-after-ms, else retry-after seconds)
+function rateLimitResetMs(resp) {
+  try {
+    const xr = parseInt(resp.headers.get("x-hub-retry-after-ms"), 10);
+    if (!Number.isNaN(xr) && xr > 0) return Date.now() + xr;
+    const ra = parseInt(resp.headers.get("retry-after"), 10);
+    if (!Number.isNaN(ra) && ra > 0) return Date.now() + ra * 1000;
+  } catch {}
+  return 0;
+}
+
+// Terminal (non-retryable 400, anthropic error shape) so the client stops its retry
+// loop; message is proxy-generated so it reads the same regardless of which provider(s)
+// the tier maps to.
+function rateLimitTerminal(message) {
+  return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message } }), {
+    status: 400, headers: { "content-type": "application/json", "x-hub-chat-error": "1" },
+  });
 }
 
 let HANDLER_CACHE = {};
@@ -79,22 +104,47 @@ async function route(request) {
   const url = new URL(request.url);
   if (url.pathname === "/health") return new Response("ok", { status: 200 });
 
-  const assigned = await resolveAssignment(request);
-  if (!assigned || !assigned.provider) {
+  const chain = await resolveAssignment(request);
+  if (!chain.length) {
     return errorResponse(503, "No provider/model assigned for this Claude tier. Run cc auth -> Providers.");
   }
-  const handlerPath = resolveHandler(assigned.provider);
-  if (!handlerPath || !existsSync(handlerPath)) {
-    return errorResponse(503, "Provider '" + assigned.provider + "' has no proxy handler installed.");
+
+  // Try the tier's models in order; advance to the next only when one is rate-limited,
+  // so a chain stops only once EVERY model in it is exhausted.
+  let lastResp = null;
+  let resetMs = 0;
+  for (const assigned of chain) {
+    const handlerPath = resolveHandler(assigned.provider);
+    if (!handlerPath || !existsSync(handlerPath)) {
+      lastResp = errorResponse(503, "Provider '" + assigned.provider + "' has no proxy handler installed.");
+      continue;
+    }
+    let resp;
+    try {
+      const mod = await import(handlerPath);
+      if (typeof mod.handle !== "function") { lastResp = errorResponse(500, "Provider '" + assigned.provider + "' handler exports no handle()"); continue; }
+      resp = await mod.handle(request, { configDir: CONFIG_DIR, log, model: assigned.model });
+    } catch (e) {
+      log("handler error for " + assigned.provider + ": " + (e && e.message));
+      lastResp = errorResponse(502, "Provider handler failed: " + (e && e.message));
+      continue;
+    }
+    lastResp = resp;
+    if (isRateLimited(resp)) {
+      const ms = rateLimitResetMs(resp);
+      if (ms > resetMs) resetMs = ms;
+      log("rate-limited on " + assigned.provider + "/" + assigned.model + " — trying next fallback");
+      continue;
+    }
+    return resp; // success or a non-rate-limit error — surface it
   }
-  try {
-    const mod = await import(handlerPath);
-    if (typeof mod.handle !== "function") return errorResponse(500, "Provider '" + assigned.provider + "' handler exports no handle()");
-    return await mod.handle(request, { configDir: CONFIG_DIR, log, model: assigned.model });
-  } catch (e) {
-    log("handler error for " + assigned.provider + ": " + (e && e.message));
-    return errorResponse(502, "Provider handler failed: " + (e && e.message));
+
+  // Every model in the chain was rate-limited (or unavailable).
+  if (resetMs > Date.now()) {
+    const mins = Math.max(1, Math.round((resetMs - Date.now()) / 60000));
+    return rateLimitTerminal("All models mapped to this Claude tier are rate-limited — try again in ~" + mins + "m.");
   }
+  return lastResp || errorResponse(503, "No provider handler available for this Claude tier.");
 }
 
 // Node http server that adapts a node req -> web Request and a web Response ->

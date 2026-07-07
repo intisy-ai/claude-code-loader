@@ -66,27 +66,40 @@ export function catalogEntries(configDir) {
   return out;
 }
 
-// Effective tier -> {provider, model, name, derived} map. Keeps the user's stored
-// choice while its model still exists in the catalog; otherwise auto-derives the first
-// catalog entry whose id carries the tier keyword (catalog order = provider ranking).
-// "default" follows an explicit valid choice, else opus. The synthetic "-auto" ids are
-// skipped so a tier never resolves to Auto.
+// Normalize a stored slot value into an ordered chain: legacy single {provider,model}
+// -> [obj]; an array stays; anything else -> []. First entry is the primary, the rest
+// are ordered fallbacks the proxy tries when earlier ones are rate-limited.
+export function normalizeChain(raw) {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.filter((e) => e && e.provider && e.model);
+}
+
+// Effective tier -> ORDERED CHAIN of {provider, model, name, derived}. Each stored
+// entry is kept while its model still exists in the catalog; a fully stale/unset tier
+// auto-derives one primary (preferring the provider the user chose, else any) by tier
+// keyword. "default" follows an explicit valid chain, else opus. "-auto" ids skipped.
 export function resolveModelMap(configDir) {
   const stored = readModelMap(configDir);
   const catalog = catalogEntries(configDir).filter((e) => !/-auto$/.test(e.model));
   const has = (provider, model) => catalog.some((e) => e.provider === provider && e.model === model);
-  const deriveIn = (entries, keyword) => entries.find((e) => e.model.toLowerCase().indexOf(keyword) >= 0) || null;
+  const nameOf = (provider, model) => { const m = catalog.find((e) => e.provider === provider && e.model === model); return (m && m.name) || model; };
+  const deriveIn = (entries, keyword) => entries.find((e) => keyword && e.model.toLowerCase().indexOf(keyword) >= 0) || null;
 
   const pick = (slot, keyword) => {
-    const s = stored[slot];
-    if (s && s.provider && s.model && has(s.provider, s.model)) return { provider: s.provider, model: s.model, derived: false };
-    // Re-derive a stale/unset slot. Prefer the provider the user actually chose (only
-    // its model id changed) so a claude-code slot heals to the current claude-code
-    // model for this tier — NOT another provider that merely also has an "opus".
-    // Catalog order is the provider's ranking, so the first keyword match is the best.
-    const inProvider = s && s.provider ? catalog.filter((e) => e.provider === s.provider) : [];
+    const chain = normalizeChain(stored[slot]);
+    const out = [];
+    for (const e of chain) {
+      if (has(e.provider, e.model)) out.push({ provider: e.provider, model: e.model, name: nameOf(e.provider, e.model), derived: false });
+    }
+    if (out.length) return out;
+    // Whole chain stale/unset — derive one primary. Prefer the provider the user chose
+    // (only its model id changed) so e.g. a claude-code opus heals to the current
+    // claude-code opus, not another provider that merely also has an "opus".
+    const preferred = chain[0] && chain[0].provider;
+    const inProvider = preferred ? catalog.filter((e) => e.provider === preferred) : [];
     const d = deriveIn(inProvider, keyword) || deriveIn(catalog, keyword);
-    return d ? { provider: d.provider, model: d.model, derived: true } : null;
+    return d ? [{ provider: d.provider, model: d.model, name: nameOf(d.provider, d.model), derived: true }] : [];
   };
 
   const eff = {
@@ -94,16 +107,8 @@ export function resolveModelMap(configDir) {
     sonnet: pick("sonnet", TIER_KEYWORD.sonnet),
     haiku: pick("haiku", TIER_KEYWORD.haiku),
   };
-  const sd = stored.default;
-  eff.default = (sd && sd.provider && sd.model && has(sd.provider, sd.model))
-    ? { provider: sd.provider, model: sd.model, derived: false }
-    : (eff.opus ? { ...eff.opus, derived: true } : null);
-
-  for (const slot of Object.keys(eff)) {
-    if (!eff[slot]) continue;
-    const match = catalog.find((e) => e.provider === eff[slot].provider && e.model === eff[slot].model);
-    eff[slot].name = (match && match.name) || eff[slot].model;
-  }
+  const dflt = pick("default", null);
+  eff.default = dflt.length ? dflt : eff.opus.map((e) => ({ ...e, derived: true }));
   return eff;
 }
 
@@ -117,13 +122,15 @@ export function modelEnvPairs(configDir) {
   const eff = resolveModelMap(configDir);
   const pairs = [];
   const set = (slot, modelVar, nameVar) => {
-    if (!eff[slot] || !eff[slot].model) return;
-    pairs.push({ key: modelVar, value: eff[slot].model });
-    pairs.push({ key: nameVar, value: eff[slot].name });
+    const primary = (eff[slot] || [])[0];   // the tier's primary drives /model display
+    if (!primary || !primary.model) return;
+    pairs.push({ key: modelVar, value: primary.model });
+    pairs.push({ key: nameVar, value: primary.name });
   };
   set("opus", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME");
   set("sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME");
   set("haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME");
-  if (eff.default && eff.default.model) pairs.push({ key: "ANTHROPIC_MODEL", value: eff.default.model });
+  const dflt = (eff.default || [])[0];
+  if (dflt && dflt.model) pairs.push({ key: "ANTHROPIC_MODEL", value: dflt.model });
   return pairs;
 }

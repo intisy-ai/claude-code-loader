@@ -9,7 +9,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { resolveModelMap } from "./model-map.js";
+import { resolveModelMap, normalizeChain } from "./model-map.js";
 
 const SLOTS = [
   { key: "opus", label: "Opus" },
@@ -131,8 +131,19 @@ function buildList(entries) {
   return { favSet, favs, groups, selectable };
 }
 
-const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0 };
+const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0, chainCursor: 0 };
 const menu = createAccountMenu();
+
+// the raw stored fallback chain for a tier (ordered [{provider,model}, ...])
+function storedChain(slot) {
+  return normalizeChain((readConfig().modelMap || {})[slot]);
+}
+function writeChain(slot, chain) {
+  const cfg = readConfig();
+  cfg.modelMap = cfg.modelMap || {};
+  if (chain.length) cfg.modelMap[slot] = chain; else delete cfg.modelMap[slot];
+  writeConfig(cfg);
+}
 
 // model row + category header share the same left inset (text at column 4); the
 // selection ">" sits in the gutter to the left so text never shifts.
@@ -172,10 +183,14 @@ function renderSlots(h) {
   h.pushBody("", false);
   SLOTS.forEach((slot, i) => {
     const sel = tab.cursor === i;
-    const a = map[slot.key];
-    const value = a && a.provider
-      ? (h.ACCENT + a.provider + " / " + a.model + h.RST + (a.derived ? h.DIM + " (auto)" + h.RST : ""))
-      : (h.DIM + "(unset)" + h.RST);
+    const chain = map[slot.key] || [];
+    const primary = chain[0];
+    let value;
+    if (!primary) value = h.DIM + "(unset)" + h.RST;
+    else {
+      value = h.ACCENT + primary.provider + " / " + primary.model + h.RST + (primary.derived ? h.DIM + " (auto)" + h.RST : "");
+      if (chain.length > 1) value += h.DIM + "  +" + (chain.length - 1) + " fallback" + (chain.length - 1 === 1 ? "" : "s") + h.RST;
+    }
     const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
   });
@@ -189,12 +204,50 @@ function renderSlots(h) {
   });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter Open (tier=assign · provider=accounts)   Tab Switch   Q Quit" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   Tab Switch   Q Quit" + h.RST);
+}
+
+// items shown in the chain editor: [Add model], each chain entry, then [Clear chain].
+function chainItems(slot) {
+  const chain = storedChain(slot);
+  const items = [{ kind: "add" }];
+  chain.forEach((e, idx) => items.push({ kind: "entry", e, idx }));
+  if (chain.length) items.push({ kind: "clear" });
+  return items;
+}
+
+function renderChain(h) {
+  const slot = SLOTS.find((s) => s.key === tab.editingSlot) || { label: tab.editingSlot, key: tab.editingSlot };
+  const items = chainItems(slot.key);
+  if (tab.chainCursor >= items.length) tab.chainCursor = items.length - 1;
+  if (tab.chainCursor < 0) tab.chainCursor = 0;
+  h.pushBody("  " + h.BOLD + h.WHITE + slot.label + " model chain" + h.RST, false);
+  h.pushBody("  " + h.DIM + "Tried top-to-bottom; only advances to the next when one is rate-limited." + h.RST, false);
+  h.pushBody("", false);
+  items.forEach((it, i) => {
+    const sel = i === tab.chainCursor;
+    const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
+    const body = sel ? (h.BG_SEL + h.BOLD + h.WHITE) : h.GRAY;
+    let text;
+    if (it.kind === "add") text = (sel ? body : h.ACCENT) + "+ Add model" + h.RST;
+    else if (it.kind === "clear") text = body + "Clear chain" + h.RST;
+    else text = body + h.pad(it.idx === 0 ? "primary" : "fallback", 9) + h.RST + h.GRAY + it.e.provider + " / " + it.e.model + h.RST + (sel ? h.DIM + "  (Enter removes)" + h.RST : "");
+    h.pushBody("  " + gutter + text, sel);
+  });
+  if (storedChain(slot.key).length === 0) {
+    const primary = (resolveModelMap(configDir())[slot.key] || [])[0];
+    h.pushBody("", false);
+    h.pushBody("  " + h.DIM + (primary ? "auto: " + primary.provider + " / " + primary.model : "no models available — log in / refresh") + h.RST, false);
+  }
+  h.pushBody("", false);
+  h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter (add / remove / clear)   Esc Back" + h.RST);
 }
 
 function render(state, h) {
   if (menu.render(h)) return;   // in-tab account/quota menu owns the tab while open
-  if (tab.mode === "pick") { const slot = SLOTS.find((s) => s.key === tab.editingSlot); renderList(h, "Assign " + (slot ? slot.label : ""), buildList(allEntries())); }
+  if (tab.mode === "pick") { const slot = SLOTS.find((s) => s.key === tab.editingSlot); renderList(h, "Add to " + (slot ? slot.label : "") + " chain", buildList(allEntries())); }
+  else if (tab.mode === "chain") renderChain(h);
   else if (tab.mode === "browse") renderList(h, tab.editingProvider + " models", buildList(allEntries().filter((e) => e.provider === tab.editingProvider)));
   else renderSlots(h);
 }
@@ -214,9 +267,9 @@ function handleKey(key, state, tuiApi) {
     if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "enter" || key === "space") {
       if (tab.cursor < SLOTS.length) {
-        // a Claude tier -> assign a provider model
-        tab.search = ""; tab.pickCursor = 0; tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "pick";
-        if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(true);
+        // a Claude tier -> edit its model chain (primary + ordered fallbacks)
+        tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "chain"; tab.chainCursor = 0;
+        if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(false);
       } else {
         // a provider -> open its account/quota menu in-tab (OpenCode parity)
         openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi);
@@ -225,8 +278,33 @@ function handleKey(key, state, tuiApi) {
     return;
   }
 
-  // pick / browse (text-input): cursor lands on models only
-  const close = () => { tab.mode = "slots"; if (tuiApi.setTextInput) tuiApi.setTextInput(false); };
+  if (tab.mode === "chain") {
+    const items = chainItems(tab.editingSlot);
+    if (key === "up" || key === "w") { tab.chainCursor = (tab.chainCursor - 1 + items.length) % items.length; return; }
+    if (key === "down" || key === "s") { tab.chainCursor = (tab.chainCursor + 1) % items.length; return; }
+    if (key === "escape") { tab.mode = "slots"; return; }
+    if (key === "enter" || key === "space") {
+      const it = items[tab.chainCursor];
+      if (!it || it.kind === "add") {
+        // open the picker to append a model to this tier's chain
+        tab.search = ""; tab.pickCursor = 0; tab.mode = "pick";
+        if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(true);
+      } else if (it.kind === "clear") {
+        writeChain(tab.editingSlot, []); tab.chainCursor = 0;
+        try { if (tuiApi.flash) tuiApi.flash("Cleared " + tab.editingSlot + " chain"); } catch {}
+      } else {
+        const chain = storedChain(tab.editingSlot);
+        chain.splice(it.idx, 1);
+        writeChain(tab.editingSlot, chain);
+        tab.chainCursor = Math.max(0, tab.chainCursor - 1);
+      }
+    }
+    return;
+  }
+
+  // pick / browse (text-input): cursor lands on models only. Picker returns to the
+  // chain editor it was opened from; browse returns to the slots overview.
+  const close = () => { tab.mode = (tab.mode === "pick") ? "chain" : "slots"; if (tuiApi.setTextInput) tuiApi.setTextInput(false); };
   if (key === "escape") { close(); return; }
   if (key === "up") { tab.pickCursor = Math.max(0, tab.pickCursor - 1); return; }
   if (key === "down") { tab.pickCursor = Math.min(currentList().selectable.length - 1, tab.pickCursor + 1); return; }
@@ -245,13 +323,15 @@ function handleKey(key, state, tuiApi) {
   if (key === "enter") {
     if (tab.mode !== "pick") return;   // browse mode: nothing to assign
     const e = currentList().selectable[tab.pickCursor];
-    close();
+    close();   // back to the chain editor
     if (e) {
-      const cfg = readConfig();
-      cfg.modelMap = cfg.modelMap || {};
-      cfg.modelMap[tab.editingSlot] = { provider: e.provider, model: e.model };
-      writeConfig(cfg);
-      try { if (tuiApi.flash) tuiApi.flash(tab.editingSlot + " -> " + e.provider + " / " + e.model); } catch {}
+      const chain = storedChain(tab.editingSlot);
+      if (!chain.some((x) => x.provider === e.provider && x.model === e.model)) {
+        chain.push({ provider: e.provider, model: e.model });
+        writeChain(tab.editingSlot, chain);
+      }
+      tab.chainCursor = chain.length;   // land on the new entry / Clear
+      try { if (tuiApi.flash) tuiApi.flash(tab.editingSlot + " += " + e.provider + " / " + e.model); } catch {}
     }
     return;
   }
