@@ -4,9 +4,10 @@
 // request to the {provider, model} assigned to its Claude tier (opus/sonnet/haiku)
 // in the loader config, discovered from repos/ via claudeHub.authProviders.
 
-import { existsSync, readFileSync, mkdirSync, appendFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, mkdirSync, appendFileSync, writeFileSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { pathToFileURL } from "url";
 import { createServer } from "http";
 import { Readable } from "stream";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
@@ -81,35 +82,47 @@ function rateLimitResetMs(resp) {
 // real upstream 429 (claude-code carries the exact unified-* headers); synthesize the
 // native shape from the reset for a non-claude provider that gave up differently.
 async function rateLimitFinal(lastResp, resetMs) {
+  // Keep the real upstream 429's rate-limit headers when present (claude-code carries
+  // the exact unified-* reset), but always replace the body with a clear, actionable
+  // message that includes the reset — the same wording regardless of provider.
+  let reset = resetMs || 0;
+  const headers = {};
   if (lastResp && lastResp.status === 429) {
-    const headers = Object.fromEntries(lastResp.headers);
+    Object.assign(headers, Object.fromEntries(lastResp.headers));
     delete headers["content-encoding"]; delete headers["content-length"];
     delete headers["x-hub-rate-limited"]; delete headers["x-hub-retry-after-ms"];
-    let buf = null; try { buf = Buffer.from(await lastResp.arrayBuffer()); } catch {}
-    return new Response(buf, { status: 429, headers });
+    for (const k of ["anthropic-ratelimit-unified-5h-reset", "anthropic-ratelimit-unified-reset"]) {
+      const s = parseInt(headers[k], 10);
+      if (!Number.isNaN(s) && s * 1000 > reset) reset = s * 1000;
+    }
   }
-  const resetSec = Math.floor((resetMs || Date.now()) / 1000);
-  const retry = Math.max(1, Math.round(((resetMs || Date.now()) - Date.now()) / 1000));
-  return new Response(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "Rate limit exceeded." } }), {
-    status: 429,
-    headers: {
-      "content-type": "application/json",
-      "retry-after": String(retry),
-      "anthropic-ratelimit-unified-status": "rejected",
-      "anthropic-ratelimit-unified-reset": String(resetSec),
-      "anthropic-ratelimit-unified-5h-status": "rejected",
-      "anthropic-ratelimit-unified-5h-reset": String(resetSec),
-    },
-  });
+  const mins = reset > Date.now() ? Math.max(1, Math.round((reset - Date.now()) / 60000)) : 0;
+  const message = mins
+    ? "Rate limit reached — resets in ~" + mins + "m. Add a fallback model in cc -> Providers, or wait."
+    : "Rate limit reached. Try again later, or add a fallback model in cc -> Providers.";
+  headers["content-type"] = "application/json";
+  headers["retry-after"] = String(reset > Date.now() ? Math.round((reset - Date.now()) / 1000) : 60);
+  if (!headers["anthropic-ratelimit-unified-status"]) headers["anthropic-ratelimit-unified-status"] = "rejected";
+  if (!headers["anthropic-ratelimit-unified-reset"]) headers["anthropic-ratelimit-unified-reset"] = String(Math.floor((reset || Date.now()) / 1000));
+  return new Response(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message } }), { status: 429, headers });
 }
 
+// Load a provider's handler module, RELOADING it when the deployed file changes.
+// This daemon is long-lived and Node caches imports by path, so without an mtime
+// cache-bust a provider update (e.g. new 403 handling) would never take effect until
+// the proxy restarts. Cache by provider; re-import only when the file's mtime moves.
 let HANDLER_CACHE = {};
-function resolveHandler(providerName) {
-  if (HANDLER_CACHE[providerName] !== undefined) return HANDLER_CACHE[providerName];
+async function loadHandler(providerName) {
   const match = readDeployedProviders(REPOS_DIR).find((p) => p.provider === providerName);
-  const resolved = match ? match.handlerPath : null;
-  HANDLER_CACHE[providerName] = resolved;
-  return resolved;
+  if (!match || !existsSync(match.handlerPath)) return null;
+  const path = match.handlerPath;
+  let mtime = 0;
+  try { mtime = statSync(path).mtimeMs; } catch {}
+  const cached = HANDLER_CACHE[providerName];
+  if (cached && cached.path === path && cached.mtime === mtime) return cached.mod;
+  const mod = await import(pathToFileURL(path).href + "?v=" + mtime);
+  HANDLER_CACHE[providerName] = { path, mtime, mod };
+  return mod;
 }
 
 function errorResponse(status, message) {
@@ -133,15 +146,15 @@ async function route(request) {
   let lastResp = null;
   let resetMs = 0;
   for (const assigned of chain) {
-    const handlerPath = resolveHandler(assigned.provider);
-    if (!handlerPath || !existsSync(handlerPath)) {
+    let mod;
+    try { mod = await loadHandler(assigned.provider); }
+    catch (e) { log("handler load failed for " + assigned.provider + ": " + (e && e.message)); mod = null; }
+    if (!mod || typeof mod.handle !== "function") {
       lastResp = errorResponse(503, "Provider '" + assigned.provider + "' has no proxy handler installed.");
       continue;
     }
     let resp;
     try {
-      const mod = await import(handlerPath);
-      if (typeof mod.handle !== "function") { lastResp = errorResponse(500, "Provider '" + assigned.provider + "' handler exports no handle()"); continue; }
       resp = await mod.handle(request, { configDir: CONFIG_DIR, log, model: assigned.model });
     } catch (e) {
       log("handler error for " + assigned.provider + ": " + (e && e.message));
