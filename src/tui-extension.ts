@@ -9,6 +9,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
+import { resolveModelMap } from "./model-map.js";
 
 const SLOTS = [
   { key: "opus", label: "Opus" },
@@ -162,7 +163,9 @@ function renderList(h, title, built) {
 }
 
 function renderSlots(h) {
-  const map = readConfig().modelMap || {};
+  // Effective (healed) mapping: a stale/unset tier auto-derives to the current catalog
+  // and is marked "(auto)"; a still-valid explicit choice is shown as-is.
+  const map = resolveModelMap(configDir());
   const provs = uniqueProviders();
   h.pushBody("  " + h.BOLD + h.WHITE + "Claude model mapping" + h.RST, false);
   h.pushBody("  " + h.DIM + "Assign each Claude tier to a provider model." + h.RST, false);
@@ -170,7 +173,9 @@ function renderSlots(h) {
   SLOTS.forEach((slot, i) => {
     const sel = tab.cursor === i;
     const a = map[slot.key];
-    const value = a && a.provider ? (h.ACCENT + a.provider + " / " + a.model + h.RST) : (h.DIM + "(unset)" + h.RST);
+    const value = a && a.provider
+      ? (h.ACCENT + a.provider + " / " + a.model + h.RST + (a.derived ? h.DIM + " (auto)" + h.RST : ""))
+      : (h.DIM + "(unset)" + h.RST);
     const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + h.pad(slot.label, 10) + h.RST + h.GRAY + " -> " + h.RST + value, sel);
   });

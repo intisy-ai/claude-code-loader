@@ -108,6 +108,7 @@ function installCcWrapper(configDir: string) {
   const extPath = join(configDir, "repos", "claude-code-loader", "dist", "tui-extension.js");
   const authPath = join(configDir, "repos", "claude-code-loader", "dist", "auth-login.js");
   const proxyPath = join(configDir, "repos", "claude-code-loader", "dist", "proxy.js");
+  const modelEnvPath = join(configDir, "repos", "claude-code-loader", "dist", "model-env.js");
   const tuiCandidates = [
     // core-loader is the post-rename location; the bare "core" path remains as a
     // fallback so already-deployed (pre-rename) installs keep resolving the TUI.
@@ -143,6 +144,10 @@ function installCcWrapper(configDir: string) {
       // proxy to reach when it launches (never blocks; failure is harmless).
       'curl -sf -o NUL --max-time 1 "http://127.0.0.1:34567/health" >NUL 2>&1',
       `if errorlevel 1 ( if exist "${proxyPath}" ( where node >NUL 2>&1 && start "" /b node "${proxyPath}" >NUL 2>&1 ) )`,
+      // Inject the mapped models as ANTHROPIC_DEFAULT_*_MODEL so /model shows them as
+      // custom Opus/Sonnet/Haiku entries; parsed name=value so display names with
+      // spaces/parens survive. Inherited by the loader TUI and any claude it spawns.
+      `if exist "${modelEnvPath}" ( for /f "usebackq tokens=1* delims==" %%A in (\`node "${modelEnvPath}" cmd 2^>NUL\`) do set "%%A=%%B" )`,
       'set "_args=%*"',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if "%1"=="auth" ( if exist "${authPath}" ( bun run "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
@@ -170,6 +175,7 @@ function installCcWrapper(configDir: string) {
       // a missing/unstartable proxy simply leaves the env unset (plain cc usage).
       'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
       `HUB_PROXY_JS="${proxyPath}"`,
+      `HUB_MODEL_ENV_JS="${modelEnvPath}"`,
       'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
       // If the proxy is unhealthy but a HUNG instance still holds :34567, a fresh
       // node would fail to bind (EADDRINUSE) and die — so kill any stale proxy first,
@@ -180,7 +186,10 @@ function installCcWrapper(configDir: string) {
       // ANTHROPIC_API_KEY — a custom API key triggers CC's "approve this key?"
       // prompt (and a wrong "No" is remembered with no way back). Clear any API key
       // so CC sees only the token and routes through the proxy without prompting.
-      'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; unset ANTHROPIC_API_KEY; export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-sk-ant-loader-proxy}"; fi; }',
+      // On launch (proxy confirmed up) also inject the mapped models as
+      // ANTHROPIC_DEFAULT_*_MODEL so /model lists them as custom Opus/Sonnet/Haiku
+      // entries; model-env.js emits single-quote-safe `export KEY='value'` lines.
+      'ensure_proxy() { if ! hub_proxy_up; then start_proxy_if_down; i=0; while [ $i -lt 20 ] && ! hub_proxy_up; do sleep 0.25; i=$((i+1)); done; fi; if hub_proxy_up; then export ANTHROPIC_BASE_URL="http://127.0.0.1:34567"; unset ANTHROPIC_API_KEY; export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-sk-ant-loader-proxy}"; if [ -f "$HUB_MODEL_ENV_JS" ] && command -v node >/dev/null 2>&1; then eval "$(node "$HUB_MODEL_ENV_JS" sh 2>/dev/null)"; fi; fi; }',
       // non-interactive subcommands dispatch to the node CLI (no bun required)
       'case "$1" in',
       '  plugins|providers|proxy|doctor)',

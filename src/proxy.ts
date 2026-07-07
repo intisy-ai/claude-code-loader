@@ -10,6 +10,7 @@ import { homedir } from "os";
 import { createServer } from "http";
 import { Readable } from "stream";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { resolveModelMap } from "./model-map.js";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);
 const CONFIG_DIR = process.env.HUB_CONFIG_DIR
@@ -45,7 +46,16 @@ function claudeSlot(model) {
 async function resolveAssignment(request) {
   let requested = "";
   try { requested = ((await request.clone().json()) || {}).model || ""; } catch {}
-  const map = loaderConfig().modelMap || {};
+  // Healed mapping: stale/unset tiers auto-derive to the current catalog, so routing
+  // tracks a model refresh even if the stored mapping was never re-assigned.
+  const map = resolveModelMap(CONFIG_DIR);
+  // Exact-id match first: the cc wrapper injects each tier's mapped model id as
+  // ANTHROPIC_DEFAULT_*_MODEL, so the request model can be a backend id that carries
+  // no opus/sonnet/haiku keyword — recover its tier by matching the assigned ids
+  // before falling back to keyword classification.
+  for (const slot of Object.keys(map)) {
+    if (map[slot] && map[slot].model && map[slot].model === requested) return map[slot];
+  }
   return map[claudeSlot(requested)] || map.default || null;
 }
 
@@ -105,7 +115,14 @@ const server = createServer((nodeReq, nodeRes) => {
         duplex: "half",
       });
       const webRes = await route(webReq);
-      nodeRes.writeHead(webRes.status, Object.fromEntries(webRes.headers));
+      // undici's fetch (used by provider handlers) transparently DECOMPRESSES the
+      // upstream body but leaves content-encoding/content-length in place. Forwarding
+      // those onto the already-decoded body makes the claude CLI try to gunzip plain
+      // text -> "Decompression error: ZlibError". Strip both; Node re-chunks the body.
+      const outHeaders = Object.fromEntries(webRes.headers);
+      delete outHeaders["content-encoding"];
+      delete outHeaders["content-length"];
+      nodeRes.writeHead(webRes.status, outHeaders);
       if (webRes.body) {
         // SSE / streaming responses MUST pipe (never buffer) so streaming works.
         Readable.fromWeb(webRes.body).pipe(nodeRes);
