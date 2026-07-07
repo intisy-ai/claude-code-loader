@@ -1,13 +1,12 @@
 ﻿import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
 // @ts-ignore — generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
 import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
 // @ts-ignore — generated bundle, no .d.ts
 import { getBinDir, runEarlyLaunchHooks } from "../core-loader/dist/loader-runtime.js";
 // @ts-ignore — generated bundle, no .d.ts
-import { makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
+import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -99,12 +98,6 @@ function writeLog(configDir: string, message: string, isError: boolean = false) 
   makeWriteLog("claude-code-loader", configDir)(message, isError);
 }
 
-function getAppConfigDir() {
-  const home = homedir();
-  const directPath = join(home, ".claude");
-  const configPath = join(home, ".config", "claude");
-  return existsSync(directPath) ? directPath : configPath;
-}
 
 function installCcWrapper(configDir: string) {
   const binDir = getBinDir();
