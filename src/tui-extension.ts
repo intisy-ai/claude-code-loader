@@ -174,11 +174,17 @@ function renderList(h, title, built) {
   h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab Favorite   Esc Back" + h.RST);
 }
 
+function routingLabel() {
+  const providerRouting = readConfig().providerRouting !== false;   // default true
+  return "Routing: " + (providerRouting ? "[Provider setup]" : "[Claude account]") + "  (r to toggle)";
+}
+
 function renderSlots(h) {
   // Effective (healed) mapping: a stale/unset tier auto-derives to the current catalog
   // and is marked "(auto)"; a still-valid explicit choice is shown as-is.
   const map = resolveModelMap(configDir());
   const provs = uniqueProviders();
+  h.pushBody("  " + h.DIM + routingLabel() + h.RST, false);
   h.pushBody("  " + h.BOLD + h.WHITE + "Claude model mapping" + h.RST, false);
   h.pushBody("  " + h.DIM + "Assign each Claude tier to a provider model." + h.RST, false);
   h.pushBody("", false);
@@ -205,7 +211,7 @@ function renderSlots(h) {
   });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   Tab Switch   Q Quit" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   R Routing   Tab Switch   Q Quit" + h.RST);
 }
 
 // items shown in the chain editor: [Add model], each chain entry, then [Clear chain].
@@ -265,6 +271,17 @@ function handleKey(key, state, tuiApi) {
     const total = SLOTS.length + provs.length;
     if (key === "up" || key === "w") { tab.cursor = (tab.cursor - 1 + total) % total; return; }
     if (key === "down" || key === "s") { tab.cursor = (tab.cursor + 1) % total; return; }
+    if (key === "r" || key === "R") {
+      // flip routing mode: providers proxy setup vs native Claude account login.
+      const cfg = readConfig();
+      const nowRouting = !(cfg.providerRouting !== false);
+      cfg.providerRouting = nowRouting;
+      writeConfig(cfg);
+      try {
+        if (tuiApi.flash) tuiApi.flash(nowRouting ? "Routing: provider setup" : "Routing: Claude account (restart cc)");
+      } catch {}
+      return;
+    }
     if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "enter" || key === "space") {
       if (tab.cursor < SLOTS.length) {

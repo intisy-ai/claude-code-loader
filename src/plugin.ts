@@ -18,6 +18,9 @@ defineConfig("claude-code-loader", {
   update_check_interval_hours: 24,
   catalog_cache_hours: 6,
   default_tab: "projects",
+  // true = route Claude through the local proxy + configured providers (current
+  // behavior); false = native Claude account, no proxy, `claude`'s own login.
+  providerRouting: true,
 });
 
 defineReadme({
@@ -109,6 +112,7 @@ function installCcWrapper(configDir: string) {
   const authPath = join(configDir, "repos", "claude-code-loader", "dist", "auth-login.js");
   const proxyPath = join(configDir, "repos", "claude-code-loader", "dist", "proxy.js");
   const modelEnvPath = join(configDir, "repos", "claude-code-loader", "dist", "model-env.js");
+  const routeJsPath = join(configDir, "repos", "claude-code-loader", "dist", "route-mode.js");
   const tuiCandidates = [
     // core-loader is the post-rename location; the bare "core" path remains as a
     // fallback so already-deployed (pre-rename) installs keep resolving the TUI.
@@ -128,10 +132,17 @@ function installCcWrapper(configDir: string) {
       "set HUB_CLI_CMD=claude",
       "set HUB_NPM_PKG=@anthropic-ai/claude-code",
       `set "HUB_TUI_EXTENSION=${extPath}"`,
-      'set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567"',
-      // AUTH_TOKEN (Bearer), not API_KEY — avoids CC's "approve custom API key" prompt
-      'set "ANTHROPIC_AUTH_TOKEN=sk-ant-loader-proxy"',
-      'set "ANTHROPIC_API_KEY="',
+      // ROUTE=1 -> provider routing (proxy + provider accounts, current/default
+      // behavior); ROUTE=0 -> native Claude account, no proxy, no env overrides.
+      // A missing/failing route-mode.js falls through to the default "1" already
+      // set below (route-mode.js also independently defaults to "1" on error).
+      `set "HUB_ROUTE_JS=${routeJsPath}"`,
+      'set "ROUTE=1"',
+      `for /f %%R in ('node "%HUB_ROUTE_JS%" 2^>NUL') do set "ROUTE=%%R"`,
+      // AUTH_TOKEN (Bearer), not API_KEY — avoids CC's "approve custom API key" prompt.
+      // Only set when routing through the proxy; native mode leaves these untouched
+      // so `claude` uses its own already-logged-in subscription auth.
+      'if "%ROUTE%"=="1" ( set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567" & set "ANTHROPIC_AUTH_TOKEN=sk-ant-loader-proxy" & set "ANTHROPIC_API_KEY=" )',
       // non-interactive subcommands dispatch to the node CLI before anything else
       'set "_iscli="',
       'if "%1"=="plugins" set "_iscli=1"',
@@ -145,6 +156,9 @@ function installCcWrapper(configDir: string) {
       // the NEW code — otherwise a healthy-but-old daemon serves stale behaviour (e.g. an
       // outdated rate-limit message) forever. The sh wrapper does this via `-nt`; cmd has
       // no such test, so compare mtimes with PowerShell and taskkill the listener.
+      // Native mode (ROUTE=0): skip proxy ensure + model-env injection entirely —
+      // jump straight to the args/TUI logic below so `claude` runs untouched.
+      'if not "%ROUTE%"=="1" goto :cc_route_native',
       `set "HUB_PROXY_MARKER=%HUB_CONFIG_DIR%\\logs\\.proxy-started"`,
       `for /f %%R in ('powershell -nop -c "$p=Get-Item '${proxyPath}' -EA SilentlyContinue; $m=Get-Item '%HUB_PROXY_MARKER%' -EA SilentlyContinue; if(-not $p){'ok'}elseif(-not $m){'stale'}elseif($p.LastWriteTime -gt $m.LastWriteTime){'stale'}else{'ok'}" 2^>NUL') do set "PROXY_STATE=%%R"`,
       `if "%PROXY_STATE%"=="stale" ( for /f "tokens=5" %%p in ('netstat -ano ^| findstr :34567 ^| findstr LISTENING') do taskkill /f /pid %%p >NUL 2>&1 )`,
@@ -157,6 +171,7 @@ function installCcWrapper(configDir: string) {
       // custom Opus/Sonnet/Haiku entries; parsed name=value so display names with
       // spaces/parens survive. Inherited by the loader TUI and any claude it spawns.
       `if exist "${modelEnvPath}" ( for /f "usebackq tokens=1* delims==" %%A in (\`node "${modelEnvPath}" cmd 2^>NUL\`) do set "%%A=%%B" )`,
+      ':cc_route_native',
       'set "_args=%*"',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if "%1"=="auth" ( if exist "${authPath}" ( node "${authPath}" & exit /b %errorlevel% ) else ( set "HUB_OPEN_TAB=providers" & set "_args=" ) )`,
@@ -212,6 +227,12 @@ function installCcWrapper(configDir: string) {
       'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
       `HUB_PROXY_JS="${proxyPath}"`,
       `HUB_MODEL_ENV_JS="${modelEnvPath}"`,
+      // ROUTE=1 -> provider routing (proxy + provider accounts, current/default
+      // behavior); ROUTE=0 -> native Claude account, no proxy, no env overrides.
+      // A missing/failing route-mode.js falls back to "1" (route-mode.js also
+      // independently defaults to 1 on any error).
+      `HUB_ROUTE_JS="${routeJsPath}"`,
+      'ROUTE=$(node "$HUB_ROUTE_JS" 2>/dev/null || echo 1)',
       'HUB_PROXY_MARKER="$HUB_CONFIG_DIR/logs/.proxy-started"',
       'hub_proxy_up() { curl -sf -o /dev/null --max-time 1 "$HUB_PROXY_URL" 2>/dev/null; }',
       // A healthy daemon is never restarted by start_proxy_if_down, so a rebuilt
@@ -241,14 +262,14 @@ function installCcWrapper(configDir: string) {
       '      if [ -f "$c" ] && command -v node >/dev/null 2>&1; then exec node "$c" "$@"; fi',
       "    done ;;",
       "esac",
-      'start_proxy_if_down',
+      'if [ "$ROUTE" = "1" ]; then start_proxy_if_down; fi',
       'TUI=""',
       "for candidate in \\",
       ...tuiCandidates.map((candidate, index) =>
         `  "${candidate}"${index < tuiCandidates.length - 1 ? " \\" : "; do"}`),
       '  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi',
       "done",
-      'if [ -z "$TUI" ] || ! command -v node >/dev/null 2>&1; then ensure_proxy; exec claude "$@"; fi',
+      'if [ -z "$TUI" ] || ! command -v node >/dev/null 2>&1; then if [ "$ROUTE" = "1" ]; then ensure_proxy; fi; exec claude "$@"; fi',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if [ "$1" = "auth" ]; then if [ -f "${authPath}" ]; then exec node "${authPath}"; else export HUB_OPEN_TAB="providers"; set --; fi; fi`,
       'export CC_OUTPUT="${TEMP:-${TMPDIR:-/tmp}}/cc-dir-$$.txt"',
@@ -256,7 +277,8 @@ function installCcWrapper(configDir: string) {
       "EXIT=$?",
       'if [ $EXIT -eq 42 ]; then',
       '  rm -f "$CC_OUTPUT"',
-      '  ensure_proxy; exec claude "$@"',
+      '  if [ "$ROUTE" = "1" ]; then ensure_proxy; fi',
+      '  exec claude "$@"',
       "fi",
       'if [ $EXIT -eq 0 ] && [ -f "$CC_OUTPUT" ]; then',
       '  DIR=$(sed -n 1p "$CC_OUTPUT")',
@@ -264,7 +286,7 @@ function installCcWrapper(configDir: string) {
       '  rm -f "$CC_OUTPUT"',
       '  if [ -n "$DIR" ]; then',
       '    cd "$DIR" || exit 1',
-      '    ensure_proxy',
+      '    if [ "$ROUTE" = "1" ]; then ensure_proxy; fi',
       '    if [ -n "$SESSION" ]; then exec claude --resume "$SESSION"; else exec claude; fi',
       '  fi',
       "fi",

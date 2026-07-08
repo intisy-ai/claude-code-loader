@@ -22,8 +22,10 @@ const banner = {
 // claude-caps.ts (the app-capability adapter tui-extension registers) is ALSO its
 // own entry point so dist/claude-caps.js exists standalone for node:test to
 // import directly, in addition to being inlined into dist/tui-extension.js.
+// route-mode.ts is another standalone stdout helper (like model-env.ts) the cc
+// wrapper runs (`node dist/route-mode.js`) to decide provider-routing vs native.
 await build({
-  entryPoints: ["src/plugin.ts", "src/tui-extension.ts", "src/proxy.ts", "src/model-env.ts", "src/claude-caps.ts"],
+  entryPoints: ["src/plugin.ts", "src/tui-extension.ts", "src/proxy.ts", "src/model-env.ts", "src/claude-caps.ts", "src/route-mode.ts"],
   bundle: true,
   platform: "node",
   format: "esm",
@@ -32,4 +34,4 @@ await build({
   logLevel: "info",
 });
 
-console.log("Bundled loader plugin -> dist/plugin.js, dist/tui-extension.js, dist/proxy.js, dist/model-env.js, dist/claude-caps.js");
+console.log("Bundled loader plugin -> dist/plugin.js, dist/tui-extension.js, dist/proxy.js, dist/model-env.js, dist/claude-caps.js, dist/route-mode.js");
