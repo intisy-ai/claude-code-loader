@@ -82,6 +82,21 @@ function allEntries() {
 function uniqueProviders() {
   const order = [];
   const counts = {};
+  // Seed with EVERY declared provider (each repo's authProviders) so a provider with no
+  // models yet — e.g. antigravity, whose models are fetched at login — is still listed and
+  // selectable. Deriving the list purely from model rows (allEntries) hid model-less providers.
+  let repos = [];
+  try { repos = readdirSync(reposDir()); } catch { repos = []; }
+  for (const repo of repos) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
+      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
+      for (const p of declared) {
+        const name = p.name || repo;
+        if (counts[name] === undefined) { counts[name] = 0; order.push(name); }
+      }
+    } catch {}
+  }
   for (const e of allEntries()) {
     if (counts[e.provider] === undefined) { counts[e.provider] = 0; order.push(e.provider); }
     counts[e.provider]++;
@@ -185,6 +200,7 @@ function renderSlots(h) {
   const map = resolveModelMap(configDir());
   const provs = uniqueProviders();
   h.pushBody("  " + h.DIM + routingLabel() + h.RST, false);
+  h.pushBody("", false);   // separate the routing line from the model-mapping block
   h.pushBody("  " + h.BOLD + h.WHITE + "Claude model mapping" + h.RST, false);
   h.pushBody("  " + h.DIM + "Assign each Claude tier to a provider model." + h.RST, false);
   h.pushBody("", false);
