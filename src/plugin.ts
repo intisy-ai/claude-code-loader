@@ -140,6 +140,15 @@ function installCcWrapper(configDir: string) {
       'if "%1"=="doctor" set "_iscli=1"',
       `if defined _iscli if exist "${cliCandidates[0]}" ( node "${cliCandidates[0]}" %* & exit /b %errorlevel% )`,
       `if defined _iscli if exist "${cliCandidates[1]}" ( node "${cliCandidates[1]}" %* & exit /b %errorlevel% )`,
+      // If a proxy daemon is already running but its code is STALE (proxy.js was rebuilt
+      // since the daemon stamped its start-marker), kill it so the start-below relaunches
+      // the NEW code — otherwise a healthy-but-old daemon serves stale behaviour (e.g. an
+      // outdated rate-limit message) forever. The sh wrapper does this via `-nt`; cmd has
+      // no such test, so compare mtimes with PowerShell and taskkill the listener.
+      `set "HUB_PROXY_MARKER=%HUB_CONFIG_DIR%\\logs\\.proxy-started"`,
+      `for /f %%R in ('powershell -nop -c "$p=Get-Item '${proxyPath}' -EA SilentlyContinue; $m=Get-Item '%HUB_PROXY_MARKER%' -EA SilentlyContinue; if(-not $p){'ok'}elseif(-not $m){'stale'}elseif($p.LastWriteTime -gt $m.LastWriteTime){'stale'}else{'ok'}" 2^>NUL') do set "PROXY_STATE=%%R"`,
+      `if "%PROXY_STATE%"=="stale" ( for /f "tokens=5" %%p in ('netstat -ano ^| findstr :34567 ^| findstr LISTENING') do taskkill /f /pid %%p >NUL 2>&1 )`,
+      `if "%PROXY_STATE%"=="stale" ( del "%HUB_PROXY_MARKER%" >NUL 2>&1 )`,
       // start the loader proxy daemon if it isn't already answering, so CC has a
       // proxy to reach when it launches (never blocks; failure is harmless).
       'curl -sf -o NUL --max-time 1 "http://127.0.0.1:34567/health" >NUL 2>&1',
