@@ -75,7 +75,8 @@ Config file: `<configDir>/config/claude-code-loader.json` (edit via the loader o
   "update_check_delay_ms": 1500,
   "update_check_interval_hours": 24,
   "catalog_cache_hours": 6,
-  "default_tab": "projects"
+  "default_tab": "projects",
+  "providerRouting": true
 }
 ```
 
@@ -87,6 +88,7 @@ Config file: `<configDir>/config/claude-code-loader.json` (edit via the loader o
 | `update_check_interval_hours` | `24` |
 | `catalog_cache_hours` | `6` |
 | `default_tab` | `"projects"` |
+| `providerRouting` | `true` |
 
 ## Commands
 
