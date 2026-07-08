@@ -250,6 +250,9 @@ function renderChain(h) {
   h.pushBody("  " + h.BOLD + h.WHITE + slot.label + " model chain" + h.RST, false);
   h.pushBody("  " + h.DIM + "Tried top-to-bottom; only advances to the next when one is rate-limited." + h.RST, false);
   h.pushBody("", false);
+  // provider/model -> leaderboard score, so chain entries show quality like the picker
+  const scoreByKey = {};
+  for (const e of allEntries()) if (typeof e.score === "number") scoreByKey[e.provider + "/" + e.model] = e.score;
   items.forEach((it, i) => {
     const sel = i === tab.chainCursor;
     const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
@@ -257,7 +260,11 @@ function renderChain(h) {
     let text;
     if (it.kind === "add") text = (sel ? body : h.ACCENT) + "+ Add model" + h.RST;
     else if (it.kind === "clear") text = body + "Clear chain" + h.RST;
-    else text = body + h.pad(it.idx === 0 ? "primary" : "fallback", 9) + h.RST + h.GRAY + it.e.provider + " / " + it.e.model + h.RST + (sel ? h.DIM + "  (Enter removes)" + h.RST : "");
+    else {
+      const sc = scoreByKey[it.e.provider + "/" + it.e.model];
+      const scoreStr = typeof sc === "number" ? h.DIM + "  · score " + Math.round(sc) + h.RST : "";
+      text = body + h.pad(it.idx === 0 ? "primary" : "fallback", 9) + h.RST + h.GRAY + it.e.provider + " / " + it.e.model + h.RST + scoreStr + (sel ? h.DIM + "  (Enter removes)" + h.RST : "");
+    }
     h.pushBody("  " + gutter + text, sel);
   });
   if (storedChain(slot.key).length === 0) {
