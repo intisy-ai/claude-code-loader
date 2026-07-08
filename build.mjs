@@ -19,8 +19,11 @@ const banner = {
 // must be bundled too to stay a single self-contained file with no runtime
 // cross-submodule dependency. model-env.ts is a standalone stdout helper the cc
 // wrapper runs (`node dist/model-env.js`) to inject the mapped models into /model.
+// claude-caps.ts (the app-capability adapter tui-extension registers) is ALSO its
+// own entry point so dist/claude-caps.js exists standalone for node:test to
+// import directly, in addition to being inlined into dist/tui-extension.js.
 await build({
-  entryPoints: ["src/plugin.ts", "src/tui-extension.ts", "src/proxy.ts", "src/model-env.ts"],
+  entryPoints: ["src/plugin.ts", "src/tui-extension.ts", "src/proxy.ts", "src/model-env.ts", "src/claude-caps.ts"],
   bundle: true,
   platform: "node",
   format: "esm",
@@ -29,4 +32,4 @@ await build({
   logLevel: "info",
 });
 
-console.log("Bundled loader plugin -> dist/plugin.js, dist/tui-extension.js, dist/proxy.js, dist/model-env.js");
+console.log("Bundled loader plugin -> dist/plugin.js, dist/tui-extension.js, dist/proxy.js, dist/model-env.js, dist/claude-caps.js");

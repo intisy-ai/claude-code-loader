@@ -10,6 +10,7 @@ import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 import { resolveModelMap, normalizeChain } from "./model-map.js";
+import * as caps from "./claude-caps.js";
 
 const SLOTS = [
   { key: "opus", label: "Opus" },
@@ -340,4 +341,18 @@ function handleKey(key, state, tuiApi) {
 
 export default function (tuiApi) {
   tuiApi.registerTab({ id: "providers", label: "Providers", render, handleKey });
+  // Register the Claude-specific implementations of core-loader's generic
+  // app-capability contract (session titles, foreign-plugin listing, plugin
+  // marketplaces, MCP servers) — see src/claude-caps.ts. Guarded: an
+  // older/unbumped core-loader submodule may not carry registerCapabilities yet.
+  if (tuiApi && typeof tuiApi.registerCapabilities === "function") {
+    tuiApi.registerCapabilities({
+      listSessions: caps.listSessions,
+      foreignPlugins: caps.foreignPlugins,
+      marketplaces: caps.marketplaces,
+      addMarketplace: caps.addMarketplace,
+      mcpServers: caps.mcpServers,
+      addMcpServer: caps.addMcpServer,
+    });
+  }
 }
