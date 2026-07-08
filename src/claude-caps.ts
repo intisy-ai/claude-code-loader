@@ -106,6 +106,29 @@ export function parseMarketplaces(knownObj, extraObj) {
   return out;
 }
 
+// A marketplace's cloned .claude-plugin/marketplace.json -> its plugin count.
+// 0 for any missing/malformed input (unreadable clone, no plugins array, etc).
+export function countPlugins(marketplaceJsonObj) {
+  const plugins = marketplaceJsonObj && marketplaceJsonObj.plugins;
+  return Array.isArray(plugins) ? plugins.length : 0;
+}
+
+// A marketplace's cloned .claude-plugin/marketplace.json -> its plugin list,
+// tagged with the marketplace name as `source` (drill-in display shape).
+// Entries are parsed defensively: real marketplace.json plugin entries carry
+// at least `name`, usually `description`/`source`/`version`/etc (see
+// ecc's .claude-plugin/marketplace.json for the reference shape).
+export function parseMarketplacePlugins(marketplaceJsonObj, name) {
+  const plugins = marketplaceJsonObj && marketplaceJsonObj.plugins;
+  if (!Array.isArray(plugins)) return [];
+  return plugins.map((e) => ({
+    id: (e && e.name) || "",
+    name: (e && e.name) || "",
+    description: (e && e.description) || "",
+    source: name,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // I/O wrappers — read the real ~/.claude (or HUB_CONFIG_DIR) files.
 // ---------------------------------------------------------------------------
@@ -179,13 +202,60 @@ export function foreignPlugins() {
   } catch (e) { return []; }
 }
 
+// name -> {source, installLocation} from known_marketplaces.json +
+// settings.json's extraKnownMarketplaces (known wins on collision).
+function marketplaceEntries() {
+  const known = readJsonSafe(join(configDir(), "plugins", "known_marketplaces.json")) || {};
+  const settings = readJsonSafe(join(configDir(), "settings.json")) || {};
+  const extra = (settings && typeof settings.extraKnownMarketplaces === "object") ? settings.extraKnownMarketplaces : {};
+  const out = {};
+  [known, extra].forEach((obj) => {
+    if (!obj || typeof obj !== "object") return;
+    Object.keys(obj).forEach((name) => { if (!(name in out)) out[name] = obj[name]; });
+  });
+  return { known, extra, entries: out };
+}
+
+// installLocation's cloned .claude-plugin/marketplace.json, or null if the
+// marketplace/clone/file is missing or unparsable.
+function readMarketplaceJson(entry) {
+  const loc = entry && entry.installLocation;
+  if (!loc) return null;
+  return readJsonSafe(join(loc, ".claude-plugin", "marketplace.json"));
+}
+
 export function marketplaces() {
   try {
-    const known = readJsonSafe(join(configDir(), "plugins", "known_marketplaces.json")) || {};
-    const settings = readJsonSafe(join(configDir(), "settings.json")) || {};
-    const extra = (settings && typeof settings.extraKnownMarketplaces === "object") ? settings.extraKnownMarketplaces : {};
-    return parseMarketplaces(known, extra);
+    const { known, extra, entries } = marketplaceEntries();
+    return parseMarketplaces(known, extra).map((m) => ({
+      name: m.name,
+      source: m.source,
+      count: countPlugins(readMarketplaceJson(entries[m.name])),
+    }));
   } catch (e) { return []; }
+}
+
+export function marketplacePlugins(name) {
+  try {
+    const { entries } = marketplaceEntries();
+    return parseMarketplacePlugins(readMarketplaceJson(entries[name]), name);
+  } catch (e) { return []; }
+}
+
+// Enable/disable an installed foreign plugin (key = "name@marketplace") via
+// the CLI so `claude`'s own state stays authoritative.
+export function setForeignPluginEnabled(key, enabled) {
+  try {
+    execFileSync("claude", ["plugin", enabled ? "enable" : "disable", key], { stdio: "pipe" });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+}
+
+export function uninstallForeignPlugin(key) {
+  try {
+    execFileSync("claude", ["plugin", "uninstall", key], { stdio: "pipe" });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
 
 // The supported way to register a marketplace so a running `claude` picks it

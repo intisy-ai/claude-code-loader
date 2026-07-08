@@ -350,7 +350,10 @@ export default function (tuiApi) {
       listSessions: caps.listSessions,
       foreignPlugins: caps.foreignPlugins,
       marketplaces: caps.marketplaces,
+      marketplacePlugins: caps.marketplacePlugins,
       addMarketplace: caps.addMarketplace,
+      setForeignPluginEnabled: caps.setForeignPluginEnabled,
+      uninstallForeignPlugin: caps.uninstallForeignPlugin,
       mcpServers: caps.mcpServers,
       addMcpServer: caps.addMcpServer,
     });

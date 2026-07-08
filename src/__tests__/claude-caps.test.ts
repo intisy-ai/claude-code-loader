@@ -3,7 +3,7 @@
 // CI's `npx vitest run` collects it alongside contract.test.ts. Imports the
 // helpers from SOURCE (no dist dependency) — vitest resolves the .ts.
 import { test, expect } from "vitest";
-import { groupSessions, pickAiTitle, parseEnabledPlugins, parseMarketplaces } from "../claude-caps.js";
+import { groupSessions, pickAiTitle, parseEnabledPlugins, parseMarketplaces, countPlugins, parseMarketplacePlugins } from "../claude-caps.js";
 
 // ---- groupSessions ---------------------------------------------------------
 
@@ -142,4 +142,45 @@ test("parseMarketplaces: merges settings.json's extraKnownMarketplaces, deduped 
 test("parseMarketplaces: returns [] for absent/empty inputs", () => {
   expect(parseMarketplaces(null, null)).toEqual([]);
   expect(parseMarketplaces({}, {})).toEqual([]);
+});
+
+// ---- countPlugins --------------------------------------------------------
+
+test("countPlugins: counts entries in the plugins array", () => {
+  expect(countPlugins({ name: "ecc", plugins: [{ name: "a" }, { name: "b" }] })).toBe(2);
+});
+
+test("countPlugins: 0 for missing/non-array plugins or absent input", () => {
+  expect(countPlugins({ name: "ecc" })).toBe(0);
+  expect(countPlugins({ plugins: "not-an-array" })).toBe(0);
+  expect(countPlugins(null)).toBe(0);
+  expect(countPlugins(undefined)).toBe(0);
+});
+
+// ---- parseMarketplacePlugins ----------------------------------------------
+
+// Sample shaped after a real marketplace.json's plugins array (see ecc's
+// .claude-plugin/marketplace.json): objects with at least `name`, usually
+// `description`/`source`/`version`/etc.
+const sampleMarketplaceJson = {
+  name: "ecc",
+  owner: { name: "Affaan Mustafa" },
+  plugins: [
+    { name: "ecc", source: "./", description: "Harness-native ECC operator layer", version: "2.0.0-rc.1" },
+    { name: "no-description", source: "./sub" },
+  ],
+};
+
+test("parseMarketplacePlugins: maps plugin entries to {id,name,description,source}", () => {
+  const out = parseMarketplacePlugins(sampleMarketplaceJson, "ecc");
+  expect(out).toEqual([
+    { id: "ecc", name: "ecc", description: "Harness-native ECC operator layer", source: "ecc" },
+    { id: "no-description", name: "no-description", description: "", source: "ecc" },
+  ]);
+});
+
+test("parseMarketplacePlugins: [] when plugins is missing/non-array or input is absent", () => {
+  expect(parseMarketplacePlugins({ name: "ecc" }, "ecc")).toEqual([]);
+  expect(parseMarketplacePlugins({ plugins: "nope" }, "ecc")).toEqual([]);
+  expect(parseMarketplacePlugins(null, "ecc")).toEqual([]);
 });
