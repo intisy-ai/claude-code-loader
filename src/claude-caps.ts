@@ -67,7 +67,9 @@ export function parseEnabledPlugins(settingsObj, installedObj) {
   const enabled = (settingsObj && settingsObj.enabledPlugins) || {};
   const installedPlugins = (installedObj && installedObj.plugins) || {};
   Object.keys(enabled).forEach((key) => {
-    const idx = key.indexOf("@");
+    // split on the LAST "@" so a plugin name that itself contains "@" still
+    // yields the trailing marketplace as the source.
+    const idx = key.lastIndexOf("@");
     const name = idx >= 0 ? key.slice(0, idx) : key;
     const source = idx >= 0 ? key.slice(idx + 1) : "";
     let version = null;
@@ -119,7 +121,7 @@ function readJsonSafe(path) {
 function readTranscriptText(path) {
   try {
     const size = statSync(path).size;
-    if (size > 1000000) {
+    if (size > 1048576) {   // > 1 MiB
       const len = 256 * 1024;
       const fd = openSync(path, "r");
       const buf = Buffer.alloc(len);

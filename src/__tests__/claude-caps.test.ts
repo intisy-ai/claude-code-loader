@@ -1,10 +1,9 @@
-// Unit tests for the pure helpers in src/claude-caps.ts, run against the
-// esbuild-bundled dist/claude-caps.js (a standalone entry point — see
-// build.mjs) via Node's built-in test runner: `node --test test/claude-caps.test.js`.
-// Package.json declares "type":"module", so this file is loaded as ESM.
-import test from "node:test";
-import assert from "node:assert";
-import { groupSessions, pickAiTitle, parseEnabledPlugins, parseMarketplaces } from "../dist/claude-caps.js";
+// Unit tests for the pure helpers in src/claude-caps.ts. Runs under this
+// plugin's vitest suite (vitest.config.ts include: src/**/*.test.{ts,js}), so
+// CI's `npx vitest run` collects it alongside contract.test.ts. Imports the
+// helpers from SOURCE (no dist dependency) — vitest resolves the .ts.
+import { test, expect } from "vitest";
+import { groupSessions, pickAiTitle, parseEnabledPlugins, parseMarketplaces } from "../claude-caps.js";
 
 // ---- groupSessions ---------------------------------------------------------
 
@@ -20,38 +19,36 @@ const historyEntries = [
 
 test("groupSessions: groups by sessionId for the given dir only, newest first", () => {
   const out = groupSessions(historyEntries, DIR);
-  assert.deepStrictEqual(out.map((s) => s.id), ["s1", "s2", "s4"]); // lastUsed desc: 300, 200, 50
+  expect(out.map((s) => s.id)).toEqual(["s1", "s2", "s4"]); // lastUsed desc: 300, 200, 50
 });
 
 test("groupSessions: title is the session's earliest prompt (first prompt)", () => {
   const out = groupSessions(historyEntries, DIR);
-  const s1 = out.find((s) => s.id === "s1");
-  assert.strictEqual(s1.title, "first prompt of s1");
+  expect(out.find((s) => s.id === "s1").title).toBe("first prompt of s1");
 });
 
 test("groupSessions: lastUsed is the max timestamp; count is entries in the group", () => {
   const out = groupSessions(historyEntries, DIR);
   const s1 = out.find((s) => s.id === "s1");
-  assert.strictEqual(s1.lastUsed, 300);
-  assert.strictEqual(s1.count, 2);
+  expect(s1.lastUsed).toBe(300);
+  expect(s1.count).toBe(2);
 });
 
 test("groupSessions: a session with no prompt gets a placeholder title", () => {
   const out = groupSessions(historyEntries, DIR);
-  const s4 = out.find((s) => s.id === "s4");
-  assert.strictEqual(s4.title, "(no prompt)");
+  expect(out.find((s) => s.id === "s4").title).toBe("(no prompt)");
 });
 
 test("groupSessions: entries from other projects are excluded", () => {
   const out = groupSessions(historyEntries, DIR);
-  assert.ok(!out.some((s) => s.id === "s3"));
+  expect(out.some((s) => s.id === "s3")).toBe(false);
 });
 
 // ---- pickAiTitle ------------------------------------------------------------
 
 test("pickAiTitle: returns null for empty/nullish transcript text", () => {
-  assert.strictEqual(pickAiTitle(""), null);
-  assert.strictEqual(pickAiTitle(null), null);
+  expect(pickAiTitle("")).toBe(null);
+  expect(pickAiTitle(null)).toBe(null);
 });
 
 test("pickAiTitle: returns null when no ai-title line is present", () => {
@@ -59,7 +56,7 @@ test("pickAiTitle: returns null when no ai-title line is present", () => {
     JSON.stringify({ type: "user", message: "hi" }),
     JSON.stringify({ type: "assistant", message: "hello" }),
   ].join("\n");
-  assert.strictEqual(pickAiTitle(text), null);
+  expect(pickAiTitle(text)).toBe(null);
 });
 
 test("pickAiTitle: the LAST ai-title line wins", () => {
@@ -68,7 +65,7 @@ test("pickAiTitle: the LAST ai-title line wins", () => {
     JSON.stringify({ type: "user", message: "more chat" }),
     JSON.stringify({ type: "ai-title", aiTitle: "Final title", sessionId: "s1" }),
   ].join("\n");
-  assert.strictEqual(pickAiTitle(text), "Final title");
+  expect(pickAiTitle(text)).toBe("Final title");
 });
 
 test("pickAiTitle: skips malformed/non-JSON lines", () => {
@@ -77,7 +74,7 @@ test("pickAiTitle: skips malformed/non-JSON lines", () => {
     JSON.stringify({ type: "ai-title", aiTitle: "Real title" }),
     "",
   ].join("\n");
-  assert.strictEqual(pickAiTitle(text), "Real title");
+  expect(pickAiTitle(text)).toBe("Real title");
 });
 
 // ---- parseEnabledPlugins -----------------------------------------------------
@@ -87,28 +84,35 @@ test("parseEnabledPlugins: splits name@marketplace and carries the enabled bool"
   const out = parseEnabledPlugins(settings, null);
   const ecc = out.find((p) => p.name === "ecc");
   const sp = out.find((p) => p.name === "superpowers");
-  assert.strictEqual(ecc.source, "intisy-ai/marketplace");
-  assert.strictEqual(ecc.enabled, true);
-  assert.strictEqual(sp.source, "obra");
-  assert.strictEqual(sp.enabled, false);
+  expect(ecc.source).toBe("intisy-ai/marketplace");
+  expect(ecc.enabled).toBe(true);
+  expect(sp.source).toBe("obra");
+  expect(sp.enabled).toBe(false);
+});
+
+test("parseEnabledPlugins: splits on the LAST @ so an @-containing name keeps its marketplace", () => {
+  const settings = { enabledPlugins: { "@scope/pkg@intisy-ai/marketplace": true } };
+  const out = parseEnabledPlugins(settings, null);
+  expect(out[0].name).toBe("@scope/pkg");
+  expect(out[0].source).toBe("intisy-ai/marketplace");
 });
 
 test("parseEnabledPlugins: looks up version from installed_plugins.json", () => {
   const settings = { enabledPlugins: { "ecc@intisy-ai/marketplace": true } };
   const installed = { version: 2, plugins: { "ecc@intisy-ai/marketplace": [{ version: "1.2.3" }] } };
   const out = parseEnabledPlugins(settings, installed);
-  assert.strictEqual(out[0].version, "1.2.3");
+  expect(out[0].version).toBe("1.2.3");
 });
 
 test("parseEnabledPlugins: version is null when not present in installed_plugins.json", () => {
   const settings = { enabledPlugins: { "ecc@intisy-ai/marketplace": true } };
   const out = parseEnabledPlugins(settings, {});
-  assert.strictEqual(out[0].version, null);
+  expect(out[0].version).toBe(null);
 });
 
 test("parseEnabledPlugins: returns [] when enabledPlugins is absent", () => {
-  assert.deepStrictEqual(parseEnabledPlugins({}, {}), []);
-  assert.deepStrictEqual(parseEnabledPlugins(null, null), []);
+  expect(parseEnabledPlugins({}, {})).toEqual([]);
+  expect(parseEnabledPlugins(null, null)).toEqual([]);
 });
 
 // ---- parseMarketplaces --------------------------------------------------------
@@ -119,23 +123,23 @@ test("parseMarketplaces: extracts repo/url source from known_marketplaces.json s
     custom: { source: { source: "git", url: "https://example.com/repo.git" } },
   };
   const out = parseMarketplaces(known, null);
-  assert.strictEqual(out.find((m) => m.name === "official").source, "intisy-ai/marketplace");
-  assert.strictEqual(out.find((m) => m.name === "custom").source, "https://example.com/repo.git");
+  expect(out.find((m) => m.name === "official").source).toBe("intisy-ai/marketplace");
+  expect(out.find((m) => m.name === "custom").source).toBe("https://example.com/repo.git");
 });
 
-test("parseMarketplaces: merges settings.json's extraKnownMarketplaces, deduped by name", () => {
+test("parseMarketplaces: merges settings.json's extraKnownMarketplaces, deduped by name (known wins)", () => {
   const known = { official: { source: { repo: "intisy-ai/marketplace" } } };
   const extra = {
     official: { source: { repo: "duplicate-should-be-ignored" } },
     mine: { source: { url: "https://example.com/mine.git" } },
   };
   const out = parseMarketplaces(known, extra);
-  assert.strictEqual(out.length, 2);
-  assert.strictEqual(out.find((m) => m.name === "official").source, "intisy-ai/marketplace");
-  assert.strictEqual(out.find((m) => m.name === "mine").source, "https://example.com/mine.git");
+  expect(out.length).toBe(2);
+  expect(out.find((m) => m.name === "official").source).toBe("intisy-ai/marketplace");
+  expect(out.find((m) => m.name === "mine").source).toBe("https://example.com/mine.git");
 });
 
 test("parseMarketplaces: returns [] for absent/empty inputs", () => {
-  assert.deepStrictEqual(parseMarketplaces(null, null), []);
-  assert.deepStrictEqual(parseMarketplaces({}, {}), []);
+  expect(parseMarketplaces(null, null)).toEqual([]);
+  expect(parseMarketplaces({}, {})).toEqual([]);
 });
