@@ -352,6 +352,7 @@ export default function (tuiApi) {
       marketplaces: caps.marketplaces,
       marketplacePlugins: caps.marketplacePlugins,
       addMarketplace: caps.addMarketplace,
+      installAppPlugin: caps.installAppPlugin,
       setForeignPluginEnabled: caps.setForeignPluginEnabled,
       uninstallForeignPlugin: caps.uninstallForeignPlugin,
       mcpServers: caps.mcpServers,

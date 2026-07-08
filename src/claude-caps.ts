@@ -267,6 +267,16 @@ export function addMarketplace(input) {
   } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 }
 
+// Install a plugin browsed via a capability-registered marketplace (a Level-2
+// row from marketplacePlugins()). `pluginId` is the plugin's name within that
+// marketplace; `marketplace` is the marketplace name it was drilled into from.
+export function installAppPlugin(pluginId, marketplace) {
+  try {
+    execFileSync("claude", ["plugin", "install", pluginId + "@" + marketplace], { stdio: "pipe" });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+}
+
 export function mcpServers() {
   try {
     const cfg = readJsonSafe(join(homedir(), ".claude.json")) || {};
