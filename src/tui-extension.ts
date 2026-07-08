@@ -62,8 +62,9 @@ function allEntries() {
         const cached = cache[provider] && cache[provider].models;
         if (cached) {
           // prefer the live/cached catalog core-auth wrote at login
+          const scores = (cache[provider].scores) || {};
           for (const model of Object.keys(cached)) {
-            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model });
+            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined });
           }
         } else {
           // fall back to any static list the package still declares
@@ -166,7 +167,9 @@ function writeChain(slot, chain) {
 function modelRow(h, e, sel) {
   const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
   const body = sel ? (h.BG_SEL + h.BOLD + h.WHITE) : h.GRAY;
-  h.pushBody("  " + gutter + body + e.model + h.RST + h.GRAY + "  " + e.name + h.RST, sel);
+  // trailing leaderboard quality score (when core-auth has fetched one for this model)
+  const score = typeof e.score === "number" ? h.DIM + "  · score " + Math.round(e.score) + h.RST : "";
+  h.pushBody("  " + gutter + body + e.model + h.RST + h.GRAY + "  " + e.name + h.RST + score, sel);
 }
 function catHeader(h, label, first) {
   if (!first) h.pushBody("", false);          // newline between categories

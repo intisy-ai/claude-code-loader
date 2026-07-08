@@ -50,9 +50,10 @@ export function catalogEntries(configDir) {
         if (cached) {
           // ranking (best first) if core-auth computed one, else catalog order
           const order = (cache[provider].ranking && cache[provider].ranking.length) ? cache[provider].ranking : Object.keys(cached);
+          const scores = (cache[provider].scores) || {};
           for (const model of order) {
             if (!cached[model]) continue;
-            out.push({ provider, model, name: (cached[model] && cached[model].name) || model });
+            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, score: typeof scores[model] === "number" ? scores[model] : undefined });
           }
         } else {
           for (const m of (p.models || [])) {
