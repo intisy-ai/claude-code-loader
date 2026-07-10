@@ -11,7 +11,7 @@ import { pathToFileURL } from "url";
 import { createServer } from "http";
 import { Readable } from "stream";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
-import { resolveModelMap } from "./model-map.js";
+import { resolveModelMap, catalogEntries } from "./model-map.js";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);
 const CONFIG_DIR = process.env.HUB_CONFIG_DIR
@@ -156,9 +156,44 @@ function errorResponse(status, message) {
   });
 }
 
+// Claude Code validates its custom ANTHROPIC_DEFAULT_*_MODEL / ANTHROPIC_MODEL ids
+// against /v1/models. Provider-mapped ids don't exist at Anthropic, so forwarding
+// upstream 404s and the /model picker shows them stuck loading (or drops the
+// selection). Serve the loader's own catalog instead — every mapped id resolves.
+function modelInfo(entry) {
+  return {
+    type: "model",
+    id: entry.model,
+    display_name: entry.name || entry.model,
+    created_at: "2025-01-01T00:00:00Z",
+    max_input_tokens: (entry.limit && entry.limit.context) || 200000,
+    max_tokens: (entry.limit && entry.limit.output) || 64000,
+  };
+}
+
+function modelsResponse(url) {
+  const json = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers: { "content-type": "application/json" } });
+  const entries = catalogEntries(CONFIG_DIR).filter((e) => !/-auto$/.test(e.model));
+  const id = decodeURIComponent(url.pathname.replace(/^\/v1\/models\/?/, ""));
+  if (id) {
+    const entry = entries.find((e) => e.model === id);
+    if (!entry) return json({ type: "error", error: { type: "not_found_error", message: "model not found: " + id } }, 404);
+    return json(modelInfo(entry));
+  }
+  const seen = new Set();
+  const data = [];
+  for (const entry of entries) {
+    if (seen.has(entry.model)) continue;   // same id may exist under several providers
+    seen.add(entry.model);
+    data.push(modelInfo(entry));
+  }
+  return json({ data, first_id: data.length ? data[0].id : null, last_id: data.length ? data[data.length - 1].id : null, has_more: false });
+}
+
 async function route(request) {
   const url = new URL(request.url);
   if (url.pathname === "/health") return new Response("ok", { status: 200 });
+  if (url.pathname === "/v1/models" || url.pathname.startsWith("/v1/models/")) return modelsResponse(url);
 
   const chain = await resolveAssignment(request);
   if (!chain.length) {

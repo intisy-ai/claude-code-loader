@@ -154,23 +154,53 @@ function buildList(entries) {
   return { favSet, favs, groups, selectable };
 }
 
-const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0, chainCursor: 0 };
+const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0, chainCursor: 0, mapCursor: 0 };
 const menu = createAccountMenu();
 
-// Map EVERY tier to the given provider at once: each tier gets the provider's
-// best model matching the tier keyword (catalog order = ranking, best first);
-// Default gets the provider's top model. Tiers with no match keep their mapping.
+// Map EVERY tier to the given provider at once. Per tier: the provider's best
+// model matching the tier keyword; if the provider has no such model, the one
+// whose leaderboard score is CLOSEST to the tier's reference model (the current
+// mapping's primary, else the tier's native model), so e.g. a haiku-less provider
+// still gets a comparable-quality assignment. Default follows the top tier's pick
+// (never a raw catalog head, which surprised as ANTHROPIC_MODEL).
 function mapAllTiers(providerName, tuiApi) {
-  const entries = allEntries().filter((e) => e.provider === providerName && !/-auto$/.test(e.model));
+  const all = allEntries().filter((e) => !/-auto$/.test(e.model));
+  const entries = all.filter((e) => e.provider === providerName);
   if (!entries.length) { try { if (tuiApi.flash) tuiApi.flash("No models in " + providerName + " — log in / refresh first"); } catch {} return; }
+  const currentMap = resolveModelMap(configDir());
+  const scoreOf = (provider, model) => { const m = all.find((e) => e.provider === provider && e.model === model); return m && typeof m.score === "number" ? m.score : undefined; };
   const mapped = [];
+  let firstPick = null;
   for (const slot of slots()) {
-    const pick = slot.key === "default" ? entries[0] : entries.find((e) => e.model.toLowerCase().indexOf(slot.key) >= 0);
+    if (slot.key === "default") continue;
+    let pick = entries.find((e) => e.model.toLowerCase().indexOf(slot.key) >= 0);
+    if (!pick) {
+      const current = (currentMap[slot.key] || [])[0];
+      const ref = (current && scoreOf(current.provider, current.model))
+        ?? (all.find((e) => e.model.toLowerCase().indexOf(slot.key) >= 0 && typeof e.score === "number") || {}).score;
+      const scored = entries.filter((e) => typeof e.score === "number");
+      if (typeof ref === "number" && scored.length) {
+        pick = scored.reduce((best, e) => (Math.abs(e.score - ref) < Math.abs(best.score - ref) ? e : best));
+      } else {
+        pick = entries[0];
+      }
+    }
     if (!pick) continue;
     writeChain(slot.key, [{ provider: pick.provider, model: pick.model }]);
     mapped.push(slot.key);
+    if (!firstPick) firstPick = pick;
   }
+  if (firstPick) { writeChain("default", [{ provider: firstPick.provider, model: firstPick.model }]); mapped.push("default"); }
   try { if (tuiApi.flash) tuiApi.flash(mapped.length ? "Mapped " + mapped.join(", ") + " -> " + providerName : "No " + providerName + " models match any tier"); } catch {}
+}
+
+// Wipe the stored mapping: every tier reverts to auto-derivation (the app's own
+// models first), shown as "(auto)" in the overview.
+function resetMapping(tuiApi) {
+  const cfg = readConfig();
+  delete cfg.modelMap;
+  writeConfig(cfg);
+  try { if (tuiApi.flash) tuiApi.flash("Mapping reset — all tiers auto-derive again"); } catch {}
 }
 
 // the raw stored fallback chain for a tier (ordered [{provider,model}, ...])
@@ -309,9 +339,30 @@ function renderChain(h) {
   h.pushFoot("  " + h.DIM + "^v Move   Enter (add / remove / clear)   Esc Back" + h.RST);
 }
 
+// provider picker for "Map all tiers" + the reset-to-defaults entry
+function renderMapAll(h) {
+  const provs = uniqueProviders();
+  h.pushBody("  " + h.BOLD + h.WHITE + "Map all tiers to one provider" + h.RST, false);
+  h.pushBody("  " + h.DIM + "Each tier gets the provider's matching model; tiers without a match get the closest-scoring model." + h.RST, false);
+  h.pushBody("", false);
+  provs.forEach((p, i) => {
+    const sel = tab.mapCursor === i;
+    const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
+    h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + p.name + h.RST + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, sel);
+  });
+  h.pushBody("", false);
+  const selReset = tab.mapCursor === provs.length;
+  const gutter = selReset ? (h.ACCENT + "❯ " + h.RST) : "  ";
+  h.pushBody("  " + gutter + (selReset ? h.BG_SEL + h.BOLD + h.WHITE : h.ACCENT) + "Reset mapping to defaults" + h.RST + h.DIM + "  (all tiers auto-derive)" + h.RST, selReset);
+  h.pushBody("", false);
+  h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter Apply   Esc Back" + h.RST);
+}
+
 function render(state, h) {
   if (menu.render(h)) return;   // in-tab account/quota menu owns the tab while open
   if (tab.mode === "pick") { const slot = slots().find((s) => s.key === tab.editingSlot); renderList(h, "Add to " + (slot ? slot.label : "") + " chain", buildList(allEntries())); }
+  else if (tab.mode === "mapall") renderMapAll(h);
   else if (tab.mode === "chain") renderChain(h);
   else if (tab.mode === "browse") renderList(h, tab.editingProvider + " models", buildList(allEntries().filter((e) => e.provider === tab.editingProvider)));
   else renderSlots(h);
@@ -343,12 +394,8 @@ function handleKey(key, state, tuiApi) {
     }
     if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "m" || key === "M") {
-      // Map ALL tiers to one provider at once. On a provider row use it; on a tier
-      // row use the primary's provider. Per-tier chains/fallbacks stay editable.
-      const provider = tab.cursor >= SLOTS.length
-        ? provs[tab.cursor - SLOTS.length].name
-        : (((resolveModelMap(configDir())[SLOTS[tab.cursor].key] || [])[0] || {}).provider);
-      if (provider) mapAllTiers(provider, tuiApi);
+      // open the map-all picker: choose the provider explicitly (or reset)
+      tab.mode = "mapall"; tab.mapCursor = 0;
       return;
     }
     if (key === "enter" || key === "space") {
@@ -360,6 +407,20 @@ function handleKey(key, state, tuiApi) {
         // a provider -> open its account/quota menu in-tab (OpenCode parity)
         openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi);
       }
+    }
+    return;
+  }
+
+  if (tab.mode === "mapall") {
+    const provs = uniqueProviders();
+    const total = provs.length + 1;   // + Reset entry
+    if (key === "up" || key === "w") { tab.mapCursor = (tab.mapCursor - 1 + total) % total; return; }
+    if (key === "down" || key === "s") { tab.mapCursor = (tab.mapCursor + 1) % total; return; }
+    if (key === "escape") { tab.mode = "slots"; return; }
+    if (key === "enter" || key === "space") {
+      if (tab.mapCursor < provs.length) mapAllTiers(provs[tab.mapCursor].name, tuiApi);
+      else resetMapping(tuiApi);
+      tab.mode = "slots";
     }
     return;
   }

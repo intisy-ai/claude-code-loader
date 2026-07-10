@@ -11,14 +11,15 @@ import { join } from "path";
 
 function configFolder(configDir) { return join(configDir, "config"); }
 
-// Claude tiers are DETECTED from the claude-code catalog (family token of each
-// model id, e.g. claude-fable-5 -> "fable"), so new families appear as mapping
-// slots automatically. Known families keep a familiar order; unknown ones follow.
+// Claude tiers are DETECTED from the tier-source provider's catalog (family token
+// of each model id, e.g. claude-fable-5 -> "fable"), so new families appear as
+// mapping slots automatically. Known families keep a familiar order.
+const TIER_SOURCE_PROVIDER = "claude-code";   // the app's own provider defines the tiers
 const TIER_DISPLAY_ORDER = ["opus", "sonnet", "haiku", "fable"];
 const TIER_FALLBACK = ["opus", "sonnet", "haiku"];   // pre-login only (no catalog yet)
 
 export function claudeTiers(configDir) {
-  const cc = modelCache(configDir)["claude-code"];
+  const cc = modelCache(configDir)[TIER_SOURCE_PROVIDER];
   const ids = (cc && cc.ranking && cc.ranking.length) ? cc.ranking : Object.keys((cc && cc.models) || {});
   const tiers = [];
   for (const id of ids) {
@@ -73,7 +74,7 @@ export function catalogEntries(configDir) {
           const scores = (cache[provider].scores) || {};
           for (const model of order) {
             if (!cached[model]) continue;
-            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, score: typeof scores[model] === "number" ? scores[model] : undefined });
+            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, score: typeof scores[model] === "number" ? scores[model] : undefined, limit: cached[model].limit });
           }
         } else {
           for (const m of (p.models || [])) {
@@ -121,13 +122,14 @@ export function resolveModelMap(configDir) {
     }
     if (out.length) return out;
     // Whole chain stale — heal WITHIN the chosen provider (only its model id
-    // changed); cross-provider derivation is reserved for unset tiers.
+    // changed); cross-provider derivation is reserved for unset tiers, preferring
+    // the tier-defining provider (the app's own models are the natural default).
     const preferred = chain[0] && chain[0].provider;
     if (preferred) {
       const d = deriveIn(catalog.filter((e) => e.provider === preferred), keyword);
       return d ? [{ provider: d.provider, model: d.model, name: nameOf(d.provider, d.model), derived: true }] : [];
     }
-    const d = deriveIn(catalog, keyword);
+    const d = deriveIn(catalog.filter((e) => e.provider === TIER_SOURCE_PROVIDER), keyword) || deriveIn(catalog, keyword);
     return d ? [{ provider: d.provider, model: d.model, name: nameOf(d.provider, d.model), derived: true }] : [];
   };
 
