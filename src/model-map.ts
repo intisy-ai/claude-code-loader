@@ -9,9 +9,29 @@
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";
 
-const TIER_KEYWORD = { opus: "opus", sonnet: "sonnet", haiku: "haiku" };
-
 function configFolder(configDir) { return join(configDir, "config"); }
+
+// Claude tiers are DETECTED from the claude-code catalog (family token of each
+// model id, e.g. claude-fable-5 -> "fable"), so new families appear as mapping
+// slots automatically. Known families keep a familiar order; unknown ones follow.
+const TIER_DISPLAY_ORDER = ["opus", "sonnet", "haiku", "fable"];
+const TIER_FALLBACK = ["opus", "sonnet", "haiku"];   // pre-login only (no catalog yet)
+
+export function claudeTiers(configDir) {
+  const cc = modelCache(configDir)["claude-code"];
+  const ids = (cc && cc.ranking && cc.ranking.length) ? cc.ranking : Object.keys((cc && cc.models) || {});
+  const tiers = [];
+  for (const id of ids) {
+    const m = /^claude-([a-z]+)-\d/.exec(String(id));
+    if (m && !tiers.includes(m[1])) tiers.push(m[1]);
+  }
+  if (!tiers.length) return TIER_FALLBACK.slice();
+  tiers.sort((a, b) => {
+    const ia = TIER_DISPLAY_ORDER.indexOf(a), ib = TIER_DISPLAY_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+  return tiers;
+}
 
 export function readModelMap(configDir) {
   try {
@@ -77,9 +97,13 @@ export function normalizeChain(raw) {
 }
 
 // Effective tier -> ORDERED CHAIN of {provider, model, name, derived}. Each stored
-// entry is kept while its model still exists in the catalog; a fully stale/unset tier
-// auto-derives one primary (preferring the provider the user chose, else any) by tier
-// keyword. "default" follows an explicit valid chain, else opus. "-auto" ids skipped.
+// entry is kept while its model still exists in the catalog; a fully stale tier
+// heals ONLY within the provider the user chose — never silently to a different
+// provider (an Opus->antigravity mapping must not become claude-code and then gate
+// on claude accounts). When the chosen provider has no catalog at all, the stored
+// entry passes through untouched (the catalog may simply not be fetched yet; if
+// the model is really gone the provider reports its own clear error). Only a tier
+// with NO stored choice derives from the whole catalog. "-auto" ids skipped.
 export function resolveModelMap(configDir) {
   const stored = readModelMap(configDir);
   const catalog = catalogEntries(configDir).filter((e) => !/-auto$/.test(e.model));
@@ -91,25 +115,28 @@ export function resolveModelMap(configDir) {
     const chain = normalizeChain(stored[slot]);
     const out = [];
     for (const e of chain) {
+      const providerKnown = catalog.some((c) => c.provider === e.provider);
       if (has(e.provider, e.model)) out.push({ provider: e.provider, model: e.model, name: nameOf(e.provider, e.model), derived: false });
+      else if (!providerKnown) out.push({ provider: e.provider, model: e.model, name: e.model, derived: false });
     }
     if (out.length) return out;
-    // Whole chain stale/unset — derive one primary. Prefer the provider the user chose
-    // (only its model id changed) so e.g. a claude-code opus heals to the current
-    // claude-code opus, not another provider that merely also has an "opus".
+    // Whole chain stale — heal WITHIN the chosen provider (only its model id
+    // changed); cross-provider derivation is reserved for unset tiers.
     const preferred = chain[0] && chain[0].provider;
-    const inProvider = preferred ? catalog.filter((e) => e.provider === preferred) : [];
-    const d = deriveIn(inProvider, keyword) || deriveIn(catalog, keyword);
+    if (preferred) {
+      const d = deriveIn(catalog.filter((e) => e.provider === preferred), keyword);
+      return d ? [{ provider: d.provider, model: d.model, name: nameOf(d.provider, d.model), derived: true }] : [];
+    }
+    const d = deriveIn(catalog, keyword);
     return d ? [{ provider: d.provider, model: d.model, name: nameOf(d.provider, d.model), derived: true }] : [];
   };
 
-  const eff = {
-    opus: pick("opus", TIER_KEYWORD.opus),
-    sonnet: pick("sonnet", TIER_KEYWORD.sonnet),
-    haiku: pick("haiku", TIER_KEYWORD.haiku),
-  };
+  const eff = {};
+  const tiers = claudeTiers(configDir);
+  for (const tier of tiers) eff[tier] = pick(tier, tier);
   const dflt = pick("default", null);
-  eff.default = dflt.length ? dflt : eff.opus.map((e) => ({ ...e, derived: true }));
+  const first = tiers.find((t) => (eff[t] || []).length);
+  eff.default = dflt.length ? dflt : (first ? eff[first].map((e) => ({ ...e, derived: true })) : []);
   return eff;
 }
 
@@ -122,15 +149,14 @@ export function resolveModelMap(configDir) {
 export function modelEnvPairs(configDir) {
   const eff = resolveModelMap(configDir);
   const pairs = [];
-  const set = (slot, modelVar, nameVar) => {
-    const primary = (eff[slot] || [])[0];   // the tier's primary drives /model display
-    if (!primary || !primary.model) return;
-    pairs.push({ key: modelVar, value: primary.model });
-    pairs.push({ key: nameVar, value: primary.name });
-  };
-  set("opus", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME");
-  set("sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME");
-  set("haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME");
+  for (const tier of Object.keys(eff)) {
+    if (tier === "default") continue;
+    const primary = (eff[tier] || [])[0];   // the tier's primary drives /model display
+    if (!primary || !primary.model) continue;
+    const upper = tier.toUpperCase();       // e.g. FABLE -> ANTHROPIC_DEFAULT_FABLE_MODEL
+    pairs.push({ key: "ANTHROPIC_DEFAULT_" + upper + "_MODEL", value: primary.model });
+    pairs.push({ key: "ANTHROPIC_DEFAULT_" + upper + "_MODEL_NAME", value: primary.name });
+  }
   const dflt = (eff.default || [])[0];
   if (dflt && dflt.model) pairs.push({ key: "ANTHROPIC_MODEL", value: dflt.model });
   return pairs;

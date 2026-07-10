@@ -35,12 +35,32 @@ function loaderConfig() {
   return {};
 }
 
-function claudeSlot(model) {
+// Classify a requested model into a mapping slot by tier keyword. Slots come from
+// the resolved map (detected Claude families incl. new ones like fable) — nothing
+// hardcoded here.
+function claudeSlot(model, map) {
   const m = (model || "").toLowerCase();
-  if (m.indexOf("opus") >= 0) return "opus";
-  if (m.indexOf("sonnet") >= 0) return "sonnet";
-  if (m.indexOf("haiku") >= 0) return "haiku";
+  for (const slot of Object.keys(map)) {
+    if (slot !== "default" && m.indexOf(slot) >= 0) return slot;
+  }
   return "default";
+}
+
+// User-visible, non-intrusive notice: append to core-auth's notification queue,
+// which the loader's PostToolUse hook drains into a Claude systemMessage. The user
+// must never be silently switched to a different model/provider than requested.
+const NOTIFY_INTERVAL_MS = 60000;
+const lastNotified = {};
+function notifyUser(message, level) {
+  try {
+    const now = Date.now();
+    if (lastNotified[message] && now - lastNotified[message] < NOTIFY_INTERVAL_MS) return;
+    lastNotified[message] = now;
+    const dir = join(CONFIG_DIR, "cache");
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, "auth-notifications.jsonl"), JSON.stringify({ message, level: level || "warning", at: now }) + "\n");
+    log("notify: " + message);
+  } catch {}
 }
 
 // the ORDERED CHAIN [{provider, model}, ...] the cc Providers tab assigned to the
@@ -57,7 +77,7 @@ async function resolveAssignment(request) {
   for (const slot of Object.keys(map)) {
     if ((map[slot] || []).some((e) => e.model === requested)) return map[slot];
   }
-  const slot = claudeSlot(requested);
+  const slot = claudeSlot(requested, map);
   return (map[slot] && map[slot].length) ? map[slot] : (map.default || []);
 }
 
@@ -145,11 +165,18 @@ async function route(request) {
     return errorResponse(503, "No provider/model assigned for this Claude tier. Run cc auth -> Providers.");
   }
 
+  // The user must SEE substitutions: a healed primary means the stored mapping no
+  // longer matched the catalog and routing re-derived it.
+  if (chain[0] && chain[0].derived) {
+    notifyUser("Model mapping healed: serving " + chain[0].provider + " · " + (chain[0].name || chain[0].model) + " (the stored model for this tier is no longer in the catalog).", "info");
+  }
+
   // Try the tier's models in order; advance to the next only when one is rate-limited,
   // so a chain stops only once EVERY model in it is exhausted.
   let lastResp = null;
   let resetMs = 0;
-  for (const assigned of chain) {
+  for (let i = 0; i < chain.length; i++) {
+    const assigned = chain[i];
     let mod;
     try { mod = await loadHandler(assigned.provider); }
     catch (e) { log("handler load failed for " + assigned.provider + ": " + (e && e.message)); mod = null; }
@@ -172,12 +199,17 @@ async function route(request) {
       log("rate-limited on " + assigned.provider + "/" + assigned.model + " — trying next fallback");
       continue;
     }
+    // Never switch the user silently: announce when a fallback (not the primary) served.
+    if (i > 0) {
+      notifyUser("Model fallback: " + chain[0].provider + " · " + (chain[0].name || chain[0].model) + " is rate-limited — this request was served by " + assigned.provider + " · " + (assigned.name || assigned.model) + ".");
+    }
     return resp; // success or a non-rate-limit error — surface it
   }
 
   // Every model in the chain was rate-limited (or unavailable) — hand Claude a native
   // 429 so it renders its own rate-limit UI, consistent across providers.
   if ((lastResp && lastResp.status === 429) || resetMs > Date.now()) {
+    notifyUser("All mapped models for this Claude tier are rate-limited — request rejected with the earliest reset time.");
     return await rateLimitFinal(lastResp, resetMs);
   }
   return lastResp || errorResponse(503, "No provider handler available for this Claude tier.");

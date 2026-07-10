@@ -9,15 +9,20 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { resolveModelMap, normalizeChain } from "./model-map.js";
+import { resolveModelMap, normalizeChain, claudeTiers } from "./model-map.js";
 import * as caps from "./claude-caps.js";
 
-const SLOTS = [
-  { key: "opus", label: "Opus" },
-  { key: "sonnet", label: "Sonnet" },
-  { key: "haiku", label: "Haiku" },
-  { key: "default", label: "Default" },
-];
+// Mapping slots are DETECTED from the claude-code catalog (new families like
+// Fable appear automatically) + the Default slot. Re-read per render/key.
+function slots() {
+  return claudeTiers(configDir())
+    .map((tier) => ({ key: tier, label: tier.charAt(0).toUpperCase() + tier.slice(1) }))
+    .concat([{ key: "default", label: "Default" }]);
+}
+
+// compact provenance tag for leaderboard scores ("score 50 · AA"); the full
+// source name renders in the list footer.
+function scoreTag(source) { return source ? "AA" : ""; }
 
 function configDir() { return process.env.HUB_CONFIG_DIR || join(homedir(), ".claude"); }
 function reposDir() { return join(configDir(), "repos"); }
@@ -63,8 +68,9 @@ function allEntries() {
         if (cached) {
           // prefer the live/cached catalog core-auth wrote at login
           const scores = (cache[provider].scores) || {};
+          const scoreSource = cache[provider].scoreSource || "";
           for (const model of Object.keys(cached)) {
-            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined });
+            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
           }
         } else {
           // fall back to any static list the package still declares
@@ -151,6 +157,22 @@ function buildList(entries) {
 const tab = { mode: "slots", cursor: 0, editingSlot: "opus", editingProvider: "", search: "", pickCursor: 0, chainCursor: 0 };
 const menu = createAccountMenu();
 
+// Map EVERY tier to the given provider at once: each tier gets the provider's
+// best model matching the tier keyword (catalog order = ranking, best first);
+// Default gets the provider's top model. Tiers with no match keep their mapping.
+function mapAllTiers(providerName, tuiApi) {
+  const entries = allEntries().filter((e) => e.provider === providerName && !/-auto$/.test(e.model));
+  if (!entries.length) { try { if (tuiApi.flash) tuiApi.flash("No models in " + providerName + " — log in / refresh first"); } catch {} return; }
+  const mapped = [];
+  for (const slot of slots()) {
+    const pick = slot.key === "default" ? entries[0] : entries.find((e) => e.model.toLowerCase().indexOf(slot.key) >= 0);
+    if (!pick) continue;
+    writeChain(slot.key, [{ provider: pick.provider, model: pick.model }]);
+    mapped.push(slot.key);
+  }
+  try { if (tuiApi.flash) tuiApi.flash(mapped.length ? "Mapped " + mapped.join(", ") + " -> " + providerName : "No " + providerName + " models match any tier"); } catch {}
+}
+
 // the raw stored fallback chain for a tier (ordered [{provider,model}, ...])
 function storedChain(slot) {
   return normalizeChain((readConfig().modelMap || {})[slot]);
@@ -167,8 +189,9 @@ function writeChain(slot, chain) {
 function modelRow(h, e, sel) {
   const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
   const body = sel ? (h.BG_SEL + h.BOLD + h.WHITE) : h.GRAY;
-  // trailing leaderboard quality score (when core-auth has fetched one for this model)
-  const score = typeof e.score === "number" ? h.DIM + "  · score " + Math.round(e.score) + h.RST : "";
+  // trailing leaderboard quality score + its source tag (full source in the footer)
+  const tag = scoreTag(e.scoreSource);
+  const score = typeof e.score === "number" ? h.DIM + "  · score " + Math.round(e.score) + (tag ? " · " + tag : "") + h.RST : "";
   h.pushBody("  " + gutter + body + e.model + h.RST + h.GRAY + "  " + e.name + h.RST + score, sel);
 }
 function catHeader(h, label, first) {
@@ -189,6 +212,8 @@ function renderList(h, title, built) {
   for (const g of groups) { catHeader(h, g.provider, first); first = false; rows(g.items); }
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
+  const src = (selectable.find((e) => e.scoreSource) || {}).scoreSource;
+  if (src) h.pushFoot("  " + h.DIM + "Scores: " + src + h.RST);
   h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab Favorite   Esc Back" + h.RST);
 }
 
@@ -200,6 +225,7 @@ function routingLabel() {
 function renderSlots(h) {
   // Effective (healed) mapping: a stale/unset tier auto-derives to the current catalog
   // and is marked "(auto)"; a still-valid explicit choice is shown as-is.
+  const SLOTS = slots();
   const map = resolveModelMap(configDir());
   const provs = uniqueProviders();
   h.pushBody("  " + h.DIM + routingLabel() + h.RST, false);
@@ -230,7 +256,7 @@ function renderSlots(h) {
   });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
-  h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   R Routing   Tab Switch   Q Quit" + h.RST);
+  h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   M Map all tiers   R Routing   Tab Switch   Q Quit" + h.RST);
 }
 
 // items shown in the chain editor: [Add model], each chain entry, then [Clear chain].
@@ -243,16 +269,21 @@ function chainItems(slot) {
 }
 
 function renderChain(h) {
-  const slot = SLOTS.find((s) => s.key === tab.editingSlot) || { label: tab.editingSlot, key: tab.editingSlot };
+  const slot = slots().find((s) => s.key === tab.editingSlot) || { label: tab.editingSlot, key: tab.editingSlot };
   const items = chainItems(slot.key);
   if (tab.chainCursor >= items.length) tab.chainCursor = items.length - 1;
   if (tab.chainCursor < 0) tab.chainCursor = 0;
   h.pushBody("  " + h.BOLD + h.WHITE + slot.label + " model chain" + h.RST, false);
   h.pushBody("  " + h.DIM + "Tried top-to-bottom; only advances to the next when one is rate-limited." + h.RST, false);
   h.pushBody("", false);
-  // provider/model -> leaderboard score, so chain entries show quality like the picker
+  // provider/model -> leaderboard score (+ source tag), like the picker
   const scoreByKey = {};
-  for (const e of allEntries()) if (typeof e.score === "number") scoreByKey[e.provider + "/" + e.model] = e.score;
+  let chainScoreSource = "";
+  for (const e of allEntries()) {
+    if (typeof e.score === "number") scoreByKey[e.provider + "/" + e.model] = e.score;
+    if (!chainScoreSource && e.scoreSource) chainScoreSource = e.scoreSource;
+  }
+  const chainTag = scoreTag(chainScoreSource);
   items.forEach((it, i) => {
     const sel = i === tab.chainCursor;
     const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
@@ -262,7 +293,7 @@ function renderChain(h) {
     else if (it.kind === "clear") text = body + "Clear chain" + h.RST;
     else {
       const sc = scoreByKey[it.e.provider + "/" + it.e.model];
-      const scoreStr = typeof sc === "number" ? h.DIM + "  · score " + Math.round(sc) + h.RST : "";
+      const scoreStr = typeof sc === "number" ? h.DIM + "  · score " + Math.round(sc) + (chainTag ? " · " + chainTag : "") + h.RST : "";
       text = body + h.pad(it.idx === 0 ? "primary" : "fallback", 9) + h.RST + h.GRAY + it.e.provider + " / " + it.e.model + h.RST + scoreStr + (sel ? h.DIM + "  (Enter removes)" + h.RST : "");
     }
     h.pushBody("  " + gutter + text, sel);
@@ -274,12 +305,13 @@ function renderChain(h) {
   }
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
+  if (chainScoreSource) h.pushFoot("  " + h.DIM + "Scores: " + chainScoreSource + h.RST);
   h.pushFoot("  " + h.DIM + "^v Move   Enter (add / remove / clear)   Esc Back" + h.RST);
 }
 
 function render(state, h) {
   if (menu.render(h)) return;   // in-tab account/quota menu owns the tab while open
-  if (tab.mode === "pick") { const slot = SLOTS.find((s) => s.key === tab.editingSlot); renderList(h, "Add to " + (slot ? slot.label : "") + " chain", buildList(allEntries())); }
+  if (tab.mode === "pick") { const slot = slots().find((s) => s.key === tab.editingSlot); renderList(h, "Add to " + (slot ? slot.label : "") + " chain", buildList(allEntries())); }
   else if (tab.mode === "chain") renderChain(h);
   else if (tab.mode === "browse") renderList(h, tab.editingProvider + " models", buildList(allEntries().filter((e) => e.provider === tab.editingProvider)));
   else renderSlots(h);
@@ -293,6 +325,7 @@ function currentList() {
 function handleKey(key, state, tuiApi) {
   if (menu.handleKey(key, tuiApi)) return;   // account/quota menu consumes keys while open
   if (tab.mode === "slots") {
+    const SLOTS = slots();
     const provs = uniqueProviders();
     const total = SLOTS.length + provs.length;
     if (key === "up" || key === "w") { tab.cursor = (tab.cursor - 1 + total) % total; return; }
@@ -309,6 +342,15 @@ function handleKey(key, state, tuiApi) {
       return;
     }
     if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
+    if (key === "m" || key === "M") {
+      // Map ALL tiers to one provider at once. On a provider row use it; on a tier
+      // row use the primary's provider. Per-tier chains/fallbacks stay editable.
+      const provider = tab.cursor >= SLOTS.length
+        ? provs[tab.cursor - SLOTS.length].name
+        : (((resolveModelMap(configDir())[SLOTS[tab.cursor].key] || [])[0] || {}).provider);
+      if (provider) mapAllTiers(provider, tuiApi);
+      return;
+    }
     if (key === "enter" || key === "space") {
       if (tab.cursor < SLOTS.length) {
         // a Claude tier -> edit its model chain (primary + ordered fallbacks)
