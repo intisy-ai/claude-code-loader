@@ -130,7 +130,7 @@ async function rateLimitFinal(lastResp, resetMs) {
   // still prepends "API Error: Request rejected (429) · " for any proxied 429 — that
   // prefix is Claude's, not ours, and can't be removed while routing through the proxy.
   let when = null;
-  try { if (reset > Date.now()) when = new Date(reset).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch {}
+  try { if (reset > Date.now()) when = new Date(reset).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZoneName: "short" }); } catch {}
   const message = when
     ? "You've hit your usage limit · resets at " + when
     : "You've hit your usage limit · try again later";
@@ -246,7 +246,7 @@ async function route(request) {
     }
     // Never switch the user silently: announce when a fallback (not the primary) served.
     if (i > 0) {
-      notifyUser("Model fallback: " + chain[0].provider + " · " + (chain[0].name || chain[0].model) + " is rate-limited — this request was served by " + assigned.provider + " · " + (assigned.name || assigned.model) + ".");
+      notifyUser((chain[0].name || chain[0].model) + " rate-limited → served by " + (assigned.name || assigned.model));
     }
     return resp; // success or a non-rate-limit error — surface it
   }
