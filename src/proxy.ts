@@ -78,6 +78,16 @@ async function resolveAssignment(request) {
     if ((map[slot] || []).some((e) => e.model === requested)) return map[slot];
   }
   const slot = claudeSlot(requested, map);
+  if (slot === "default" && requested) {
+    // A model picked DIRECTLY (e.g. via /model) that isn't in any tier chain must
+    // be served as itself when a provider offers it — falling through to the
+    // default tier would silently substitute a different model.
+    const entry = catalogEntries(CONFIG_DIR).find((e) => e.model === requested && !/-auto$/.test(e.model));
+    if (entry) return [{ provider: entry.provider, model: entry.model, name: entry.name, derived: false }];
+    if (!/^claude-/.test(requested)) {
+      notifyUser("Requested model '" + requested + "' is not in any provider catalog — serving the Default tier instead.");
+    }
+  }
   return (map[slot] && map[slot].length) ? map[slot] : (map.default || []);
 }
 
