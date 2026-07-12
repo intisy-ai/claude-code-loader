@@ -250,7 +250,7 @@ function renderList(h, title, built) {
 }
 
 function routingLabel() {
-  const providerRouting = readConfig().providerRouting !== false;   // default true
+  const providerRouting = readConfig()[profile.routingKey] !== false;   // default true
   return "Routing: " + (providerRouting ? "[Provider setup]" : "[Claude account]") + "  (r to toggle)";
 }
 
@@ -386,8 +386,8 @@ function handleKey(key, state, tuiApi) {
     if (key === "r" || key === "R") {
       // flip routing mode: providers proxy setup vs native Claude account login.
       const cfg = readConfig();
-      const nowRouting = !(cfg.providerRouting !== false);
-      cfg.providerRouting = nowRouting;
+      const nowRouting = !(cfg[profile.routingKey] !== false);
+      cfg[profile.routingKey] = nowRouting;
       writeConfig(cfg);
       try {
         if (tuiApi.flash) tuiApi.flash(nowRouting ? "Routing: provider setup" : "Routing: Claude account (restart cc)");
