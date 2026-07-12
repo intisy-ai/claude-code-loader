@@ -11,7 +11,7 @@
 
 import { join } from "path";
 import { homedir } from "os";
-import { modelEnvPairs, anthropicProfile } from "../core-proxy/dist/index.js";
+import { modelEnvPairs, anthropicProfile } from "../claude-code-proxy/dist/index.js";
 
 const configDir = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
 const format = process.argv[2] || "sh";

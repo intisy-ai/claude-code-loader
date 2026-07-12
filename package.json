@@ -21,7 +21,8 @@
     "dist/",
     "core-loader/dist/",
     "core/dist/",
-    "core-proxy/dist/",
+    "claude-code-proxy/dist/",
+    "claude-code-proxy/core-proxy/dist/",
     "README.md",
     "LICENSE"
   ],
@@ -37,7 +38,7 @@
     }
   },
   "scripts": {
-    "build": "npx tsc --project core-loader/tsconfig.json && npx tsc --project core-proxy/tsconfig.json --types node && npx esbuild core/src/index.ts --bundle --platform=node --format=esm --outfile=core/dist/index.js && npx tsc && node build.mjs",
+    "build": "npx tsc --project core-loader/tsconfig.json && npx tsc --project claude-code-proxy/core-proxy/tsconfig.json --types node && npx tsc --project claude-code-proxy/tsconfig.json --types node && npx esbuild core/src/index.ts --bundle --platform=node --format=esm --outfile=core/dist/index.js && npx tsc && node build.mjs",
     "postbuild": "node dist/plugin.js readme",
     "prepublishOnly": "npm run build",
     "test": "npm run build && vitest run"

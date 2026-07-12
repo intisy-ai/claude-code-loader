@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
-import { createProxyServer, anthropicProfile, makeDynamicResolver } from "../core-proxy/dist/index.js";
+import { createProxyServer, anthropicProfile, makeDynamicResolver } from "../claude-code-proxy/dist/index.js";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);
 const CONFIG_DIR = process.env.HUB_CONFIG_DIR

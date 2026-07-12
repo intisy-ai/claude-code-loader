@@ -19,7 +19,7 @@
 import { join } from "path";
 import { homedir } from "os";
 import { existsSync, readFileSync } from "fs";
-import { anthropicProfile } from "../core-proxy/dist/index.js";
+import { anthropicProfile } from "../claude-code-proxy/dist/index.js";
 
 const configDir = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
 const profile = anthropicProfile();

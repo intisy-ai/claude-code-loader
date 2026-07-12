@@ -9,7 +9,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../core-proxy/dist/index.js";
+import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../claude-code-proxy/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
