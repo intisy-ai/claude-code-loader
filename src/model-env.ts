@@ -11,13 +11,13 @@
 
 import { join } from "path";
 import { homedir } from "os";
-import { modelEnvPairs } from "./model-map.js";
+import { modelEnvPairs, anthropicProfile } from "../core-proxy/dist/index.js";
 
 const configDir = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
 const format = process.argv[2] || "sh";
 
 try {
-  const pairs = modelEnvPairs(configDir);
+  const pairs = modelEnvPairs(configDir, anthropicProfile());
   const out = pairs.map(({ key, value }) => {
     if (format === "cmd") return key + "=" + value;
     if (format === "sh-unset") return "unset " + key;

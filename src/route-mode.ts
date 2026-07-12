@@ -19,8 +19,10 @@
 import { join } from "path";
 import { homedir } from "os";
 import { existsSync, readFileSync } from "fs";
+import { anthropicProfile } from "../core-proxy/dist/index.js";
 
 const configDir = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
+const profile = anthropicProfile();
 
 // Native launches with no credential land on "Not logged in · run /login" only
 // after the first prompt — the wrapper uses this token to open /login at startup
@@ -35,9 +37,9 @@ function nativeLogin() {
 }
 
 try {
-  const p = join(configDir, "config", "claude-code-loader.json");
+  const p = join(configDir, "config", profile.configFile);
   const cfg = existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : {};
-  const providerRouting = cfg.providerRouting !== false;   // default true
+  const providerRouting = cfg[profile.routingKey] !== false;   // default true
   process.stdout.write((providerRouting ? "1" : "0") + " " + nativeLogin());
 } catch {
   process.stdout.write("1 ok");   // safe default: current behavior (provider routing)

@@ -12,13 +12,16 @@ const banner = {
 };
 
 // tui-extension.ts is loaded in isolation via HUB_TUI_EXTENSION from the repo's
-// dist dir; it imports core-loader's shared account-menu, so it must be bundled
-// self-contained too (tsc left an unresolvable ../core-loader/dist import).
+// dist dir; it imports core-loader's shared account-menu plus core-proxy's shared
+// model-map, so it must be bundled self-contained too (tsc left unresolvable
+// ../core-loader/dist and ../core-proxy/dist imports).
 // proxy.ts is the always-on daemon (run standalone via `node dist/proxy.js`); it now
-// imports core-loader's shared readDeployedProviders + the shared model-map, so it
-// must be bundled too to stay a single self-contained file with no runtime
-// cross-submodule dependency. model-env.ts is a standalone stdout helper the cc
-// wrapper runs (`node dist/model-env.js`) to inject the mapped models into /model.
+// imports core-loader's shared readDeployedProviders + core-proxy's routing engine
+// (createProxyServer/anthropicProfile/makeDynamicResolver), so it must be bundled
+// too to stay a single self-contained file with no runtime cross-submodule
+// dependency. model-env.ts is a standalone stdout helper the cc wrapper runs
+// (`node dist/model-env.js`) to inject the mapped models into /model; it now pulls
+// its mapping logic from core-proxy too.
 // claude-caps.ts (the app-capability adapter tui-extension registers) is ALSO its
 // own entry point so dist/claude-caps.js exists standalone for node:test to
 // import directly, in addition to being inlined into dist/tui-extension.js.

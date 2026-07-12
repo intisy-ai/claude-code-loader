@@ -9,13 +9,15 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { resolveModelMap, normalizeChain, claudeTiers } from "./model-map.js";
+import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../core-proxy/dist/index.js";
 import * as caps from "./claude-caps.js";
+
+const profile = anthropicProfile();
 
 // Mapping slots are DETECTED from the claude-code catalog (new families like
 // Fable appear automatically) + the Default slot. Re-read per render/key.
 function slots() {
-  return claudeTiers(configDir())
+  return claudeTiers(configDir(), profile)
     .map((tier) => ({ key: tier, label: tier.charAt(0).toUpperCase() + tier.slice(1) }))
     .concat([{ key: "default", label: "Default" }]);
 }
@@ -167,7 +169,7 @@ function mapAllTiers(providerName, tuiApi) {
   const all = allEntries().filter((e) => !/-auto$/.test(e.model));
   const entries = all.filter((e) => e.provider === providerName);
   if (!entries.length) { try { if (tuiApi.flash) tuiApi.flash("No models in " + providerName + " — log in / refresh first"); } catch {} return; }
-  const currentMap = resolveModelMap(configDir());
+  const currentMap = resolveModelMap(configDir(), profile);
   const scoreOf = (provider, model) => { const m = all.find((e) => e.provider === provider && e.model === model); return m && typeof m.score === "number" ? m.score : undefined; };
   const mapped = [];
   let firstPick = null;
@@ -256,7 +258,7 @@ function renderSlots(h) {
   // Effective (healed) mapping: a stale/unset tier auto-derives to the current catalog
   // and is marked "(auto)"; a still-valid explicit choice is shown as-is.
   const SLOTS = slots();
-  const map = resolveModelMap(configDir());
+  const map = resolveModelMap(configDir(), profile);
   const provs = uniqueProviders();
   h.pushBody("  " + h.DIM + routingLabel() + h.RST, false);
   h.pushBody("", false);   // separate the routing line from the model-mapping block
@@ -329,7 +331,7 @@ function renderChain(h) {
     h.pushBody("  " + gutter + text, sel);
   });
   if (storedChain(slot.key).length === 0) {
-    const primary = (resolveModelMap(configDir())[slot.key] || [])[0];
+    const primary = (resolveModelMap(configDir(), profile)[slot.key] || [])[0];
     h.pushBody("", false);
     h.pushBody("  " + h.DIM + (primary ? "auto: " + primary.provider + " / " + primary.model : "no models available — log in / refresh") + h.RST, false);
   }
