@@ -13,7 +13,7 @@ import { join } from "path";
 import { homedir } from "os";
 
 // ---------------------------------------------------------------------------
-// Pure helpers (no fs access) — unit-tested in test/claude-caps.test.js
+// Pure helpers (no fs access), unit-tested in src/__tests__/claude-caps.test.ts
 // ---------------------------------------------------------------------------
 
 // Group history.jsonl entries belonging to `dir` by sessionId. title is the
@@ -130,7 +130,7 @@ export function parseMarketplacePlugins(marketplaceJsonObj, name) {
 }
 
 // ---------------------------------------------------------------------------
-// I/O wrappers — read the real ~/.claude (or HUB_CONFIG_DIR) files.
+// I/O wrappers: read the real ~/.claude (or HUB_CONFIG_DIR) files.
 // ---------------------------------------------------------------------------
 
 function configDir() { return process.env.HUB_CONFIG_DIR || join(homedir(), ".claude"); }

@@ -92,7 +92,7 @@ function uniqueProviders() {
   const order = [];
   const counts = {};
   // Seed with EVERY declared provider (each repo's authProviders) so a provider with no
-  // models yet — e.g. antigravity, whose models are fetched at login — is still listed and
+  // models yet (e.g. antigravity, whose models are fetched at login) is still listed and
   // selectable. Deriving the list purely from model rows (allEntries) hid model-less providers.
   let repos = [];
   try { repos = readdirSync(reposDir()); } catch { repos = []; }
@@ -128,7 +128,7 @@ function resolveHandlerPath(providerName) {
 }
 
 // open the provider's account/quota menu natively in-tab (shared with the
-// OpenCode loader via core-loader's account-menu) — accounts, login, and the
+// OpenCode loader via core-loader's account-menu): accounts, login, and the
 // combined/per-account quota all render inside the loader chrome.
 function openAccounts(providerName, tuiApi) {
   menu.open(resolveHandlerPath(providerName), tuiApi, providerName);
@@ -491,7 +491,7 @@ export default function (tuiApi) {
   tuiApi.registerTab({ id: "providers", label: "Providers", render, handleKey });
   // Register the Claude-specific implementations of core-loader's generic
   // app-capability contract (session titles, foreign-plugin listing, plugin
-  // marketplaces, MCP servers) — see src/claude-caps.ts. Guarded: an
+  // marketplaces, MCP servers); see src/claude-caps.ts. Guarded: an
   // older/unbumped core-loader submodule may not carry registerCapabilities yet.
   if (tuiApi && typeof tuiApi.registerCapabilities === "function") {
     tuiApi.registerCapabilities({
