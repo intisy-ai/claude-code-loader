@@ -6,3 +6,5 @@ dist/
 *.stackdump
 package-lock.json
 .superpowers/
+docs/
+graphify-out/
