@@ -23,6 +23,7 @@
     "core/dist/",
     "claude-code-proxy/dist/",
     "claude-code-proxy/core-proxy/dist/",
+    "claude-code-proxy/anthropic-translator/dist/",
     "README.md",
     "LICENSE"
   ],
