@@ -1,6 +1,6 @@
 // @ts-nocheck
 // `cc auth login`: a minimal provider selector (raw-stdin), then the chosen
-// provider's shared account menu (its menu() export) — mirrors OpenCode's
+// provider's shared account menu (its menu() export), mirroring OpenCode's
 // oc auth login. Standalone blocking flow (owns stdin); not the loader TUI.
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { join } from "path";

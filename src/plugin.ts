@@ -1,11 +1,11 @@
 ﻿import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
-// @ts-ignore — generated bundle, no .d.ts
+// @ts-ignore: generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands } from "./commands.js";
 import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
-// @ts-ignore — generated bundle, no .d.ts
+// @ts-ignore: generated bundle, no .d.ts
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dist/loader-runtime.js";
-// @ts-ignore — generated bundle, no .d.ts
+// @ts-ignore: generated bundle, no .d.ts
 import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
@@ -146,7 +146,7 @@ function installCcWrapper(configDir: string) {
       // letting the first prompt fail with "Not logged in".
       'set "HUB_LOGIN_ARG="',
       'if "%ROUTE%"=="0" if "%HUB_NATIVE_LOGIN%"=="none" set "HUB_LOGIN_ARG=/login"',
-      // AUTH_TOKEN (Bearer), not API_KEY — avoids CC's "approve custom API key" prompt.
+      // AUTH_TOKEN (Bearer), not API_KEY: avoids CC's "approve custom API key" prompt.
       // Only set when routing through the proxy; native mode leaves these untouched
       // so `claude` uses its own already-logged-in subscription auth.
       'if "%ROUTE%"=="1" ( set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567" & set "ANTHROPIC_AUTH_TOKEN=sk-ant-loader-proxy" & set "ANTHROPIC_API_KEY=" )',
@@ -160,10 +160,10 @@ function installCcWrapper(configDir: string) {
       `if defined _iscli if exist "${cliCandidates[1]}" ( node "${cliCandidates[1]}" %* & exit /b %errorlevel% )`,
       // If a proxy daemon is already running but its code is STALE (proxy.js was rebuilt
       // since the daemon stamped its start-marker), kill it so the start-below relaunches
-      // the NEW code — otherwise a healthy-but-old daemon serves stale behaviour (e.g. an
+      // the NEW code; otherwise a healthy-but-old daemon serves stale behaviour (e.g. an
       // outdated rate-limit message) forever. The sh wrapper does this via `-nt`; cmd has
       // no such test, so compare mtimes with PowerShell and taskkill the listener.
-      // Native mode (ROUTE=0): skip proxy ensure + model-env injection entirely —
+      // Native mode (ROUTE=0): skip proxy ensure + model-env injection entirely;
       // jump straight to the args/TUI logic below so `claude` runs untouched.
       'if not "%ROUTE%"=="1" goto :cc_route_native',
       `set "HUB_PROXY_MARKER=%HUB_CONFIG_DIR%\\logs\\.proxy-started"`,
@@ -195,7 +195,7 @@ function installCcWrapper(configDir: string) {
       'if not defined _TUI ( claude %HUB_LOGIN_ARG% %* & goto :eof )',
       'node "%_TUI%" %_args%',
       'set "EXIT=%errorlevel%"',
-      // The routing toggle may have flipped INSIDE the TUI — re-evaluate before any
+      // The routing toggle may have flipped INSIDE the TUI; re-evaluate before any
       // claude launch below, so "Claude account" mode really launches native (and
       // strips the proxy/model env this wrapper set earlier), and vice versa.
       'call :cc_apply_route',
@@ -256,7 +256,7 @@ function installCcWrapper(configDir: string) {
       // route through the always-on loader proxy so login/onboarding is skipped.
       // start it if it's down (non-blocking here), then re-check + export the env
       // right before each `exec claude` so the decision reflects the daemon's
-      // actual state at launch — never the stale state at wrapper start.
+      // actual state at launch, never the stale state at wrapper start.
       // a missing/unstartable proxy simply leaves the env unset (plain cc usage).
       'HUB_PROXY_URL="http://127.0.0.1:34567/health"',
       `HUB_PROXY_JS="${proxyPath}"`,
@@ -278,12 +278,12 @@ function installCcWrapper(configDir: string) {
       // code; the fresh daemon re-stamps the marker on listen.
       'restart_proxy_if_stale() { if [ -f "$HUB_PROXY_JS" ] && [ "$HUB_PROXY_JS" -nt "$HUB_PROXY_MARKER" ]; then pkill -f "$HUB_PROXY_JS" 2>/dev/null || fuser -k 34567/tcp 2>/dev/null || true; rm -f "$HUB_PROXY_MARKER" 2>/dev/null || true; fi; }',
       // If the proxy is unhealthy but a HUNG instance still holds :34567, a fresh
-      // node would fail to bind (EADDRINUSE) and die — so kill any stale proxy first,
+      // node would fail to bind (EADDRINUSE) and die, so kill any stale proxy first,
       // then start. Only runs when hub_proxy_up already failed, so a healthy proxy is
       // never touched.
       'start_proxy_if_down() { if hub_proxy_up; then return 0; fi; pkill -f "$HUB_PROXY_JS" 2>/dev/null || fuser -k 34567/tcp 2>/dev/null || true; if [ -f "$HUB_PROXY_JS" ] && command -v node >/dev/null 2>&1; then (setsid node "$HUB_PROXY_JS" >/dev/null 2>&1 &) 2>/dev/null || (nohup node "$HUB_PROXY_JS" >/dev/null 2>&1 &); fi; }',
       // Use ANTHROPIC_AUTH_TOKEN (Bearer, the gateway/proxy mechanism), NOT
-      // ANTHROPIC_API_KEY — a custom API key triggers CC's "approve this key?"
+      // ANTHROPIC_API_KEY: a custom API key triggers CC's "approve this key?"
       // prompt (and a wrong "No" is remembered with no way back). Clear any API key
       // so CC sees only the token and routes through the proxy without prompting.
       // On launch (proxy confirmed up) also inject the mapped models as
@@ -347,7 +347,7 @@ function installCcWrapper(configDir: string) {
 
 export async function cleanup(configDir?: string) {
   // opencode invokes every exported function as a plugin hook, passing a context
-  // object — return an inert plugin instance in that case.
+  // object; return an inert plugin instance in that case.
   if (typeof configDir !== "string") return {};
   // Intentionally does NOT remove the cc wrapper. plugin-updater calls cleanup()
   // before EVERY redeploy; if the (slow, hook-timeout-prone) earlyLaunch process is
@@ -355,7 +355,7 @@ export async function cleanup(configDir?: string) {
   // here would leave the user with no `cc` command at all. activate() rewrites the
   // wrapper idempotently, and the existing wrapper targets stable repo paths so it
   // keeps working across updates. (A leftover wrapper after a true uninstall is
-  // harmless — it just points at an absent/disabled repo.)
+  // harmless, it just points at an absent/disabled repo.)
   return {};
 }
 

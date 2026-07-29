@@ -9,10 +9,10 @@
 //   `node route-mode.js` -> prints `<route> <login>`:
 //     route: `1` (provider routing) or `0` (native)
 //     login: `ok` (claude has native credentials / own API key) or `none`
-// Old wrappers parse only the first token (`for /f %%R` / `$(...)` first word),
-// so the second token is backward-compatible.
+// route is always the first token so a caller reading only one token
+// (`for /f %%R` / `$(...)` first word) still gets correct routing; login is additive.
 //
-// On ANY error (missing file, parse error, whatever) route falls back to `1` —
+// On ANY error (missing file, parse error, whatever) route falls back to `1`;
 // the safe default is always the current/existing behavior; a missing/broken
 // helper must never silently switch a user into native mode.
 
@@ -25,7 +25,7 @@ const configDir = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
 const profile = anthropicProfile();
 
 // Native launches with no credential land on "Not logged in · run /login" only
-// after the first prompt — the wrapper uses this token to open /login at startup
+// after the first prompt; the wrapper uses this token to open /login at startup
 // instead. Own API key/token in the env counts as logged in.
 function nativeLogin() {
   try {

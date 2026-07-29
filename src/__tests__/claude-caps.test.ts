@@ -1,7 +1,7 @@
 // Unit tests for the pure helpers in src/claude-caps.ts. Runs under this
 // plugin's vitest suite (vitest.config.ts include: src/**/*.test.{ts,js}), so
 // CI's `npx vitest run` collects it alongside contract.test.ts. Imports the
-// helpers from SOURCE (no dist dependency) — vitest resolves the .ts.
+// helpers from SOURCE (no dist dependency); vitest resolves the .ts.
 import { test, expect } from "vitest";
 import { groupSessions, pickAiTitle, parseEnabledPlugins, parseMarketplaces, countPlugins, parseMarketplacePlugins } from "../claude-caps.js";
 
