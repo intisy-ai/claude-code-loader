@@ -1,7 +1,7 @@
 ﻿import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 // @ts-ignore: generated bundle, no .d.ts
-import { maybeRunCli, deployLoaderCommands } from "./commands.js";
+import { maybeRunCli, deployLoaderCommands, loaderEntry } from "./commands.js";
 import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dist/loader-runtime.js";
@@ -382,7 +382,7 @@ export async function activate() {
   }
 
   try {
-    ensureNotifyDrainHook(configDir);   // PostToolUse hook that surfaces auth notifications to the user
+    ensureNotifyDrainHook(configDir, loaderEntry(configDir));   // Stop/PostToolUse hook that drains bus notifications to the user
   } catch (e) {
     writeLog(configDir, "Failed to register notify drain hook: " + e, true);
   }

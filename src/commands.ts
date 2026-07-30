@@ -6,6 +6,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { runConfigCli } from "../core/dist/index.js";
 import { makeLoaderCommands } from "../core-loader/dist/loader-commands.js";
+import { busDrain } from "./notify-drain.js";
 
 function loaderEntry(configDir) {
   const candidates = [
@@ -20,7 +21,9 @@ const commands = makeLoaderCommands({
   loaderEntry,
   runConfigCli,
   authHint: "tell the user to run `cc auth`",
+  busDrain,
 });
 
 export const deployLoaderCommands = commands.deployLoaderCommands;
 export const maybeRunCli = commands.maybeRunCli;
+export { loaderEntry };
