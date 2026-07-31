@@ -19,6 +19,8 @@
   ],
   "files": [
     "dist/",
+    "cairn.json",
+    "icon.svg",
     "core-loader/dist/",
     "core/dist/",
     "claude-code-proxy/dist/",
