@@ -7,6 +7,7 @@ import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dist/loader-runtime.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
+import { ensureAppCli } from "./ensure-app.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -367,6 +368,12 @@ export async function activate() {
     await runEarlyLaunchHooks(configDir, (m) => writeLog(configDir, m));
   } catch (e) {
     writeLog(configDir, "Failed during earlyLaunch hooks: " + e, true);
+  }
+
+  try {
+    ensureAppCli({ binary: "claude", pkg: "@anthropic-ai/claude-code" }, (m) => writeLog(configDir, m));
+  } catch (e) {
+    writeLog(configDir, "Failed to ensure app CLI: " + e, true);
   }
 
   try {
