@@ -7,6 +7,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { uniqueProviders } from "../tui-extension.js";
+import tuiExtension from "../tui-extension.js";
+import { claudeTiers, anthropicProfile } from "../../claude-code-proxy/dist/index.js";
 
 let homeDir;
 let prevConfigDir;
@@ -41,6 +43,16 @@ test("uniqueProviders: includes a provider materialized only via .dynamic-provid
 
   const names = uniqueProviders().map((p) => p.name);
   expect(names).toContain("my-endpoint");
+});
+
+test("the tab extension's default export awaits core-proxy init before returning, so a sync routing call right after it succeeds", async () => {
+  const registered = [];
+  const tuiApi = { registerTab: (tab) => registered.push(tab) };
+
+  await tuiExtension(tuiApi);
+
+  expect(registered.some((t) => t.id === "providers")).toBe(true);
+  expect(() => claudeTiers(homeDir, anthropicProfile())).not.toThrow();
 });
 
 test("uniqueProviders: still lists a package.json-declared provider alongside the dynamic one", () => {

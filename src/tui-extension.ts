@@ -11,7 +11,7 @@ import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
 import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
-import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../claude-code-proxy/dist/index.js";
+import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -464,7 +464,11 @@ function handleKey(key, state, tuiApi) {
   if (typeof key === "string" && key.length === 1) { tab.search += key; tab.pickCursor = 0; }
 }
 
-export default function (tuiApi) {
+export default async function (tuiApi) {
+  // This tab runs in the TUI's own process (spawned separately from the plugin's
+  // activate()), so it must init core-proxy's eager-loaded TeaVM module itself,
+  // before the render/handleKey below make their first sync routing-decision call.
+  await initCoreProxy();
   tuiApi.registerTab({ id: "providers", label: "Providers", render, handleKey });
   // Register the Claude-specific implementations of core-loader's generic
   // app-capability contract (session titles, foreign-plugin listing, plugin

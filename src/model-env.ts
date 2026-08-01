@@ -11,7 +11,7 @@
 
 import { join } from "path";
 import { homedir } from "os";
-import { modelEnvPairs, anthropicProfile } from "../claude-code-proxy/dist/index.js";
+import { modelEnvPairs, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
 import { loaderConfigDir } from "../core-loader/dist/app-home.js";
 
 const APP_HOME = join(homedir(), ".claude");
@@ -19,6 +19,9 @@ const configDir = loaderConfigDir(APP_HOME);
 const format = process.argv[2] || "sh";
 
 try {
+  // This one-shot process has no other async entry point; init here before the
+  // first sync routing-decision call (core-proxy's TeaVM module is eager-loaded).
+  await initCoreProxy();
   const pairs = modelEnvPairs(configDir, anthropicProfile());
   const out = pairs.map(({ key, value }) => {
     if (format === "cmd") return key + "=" + value;
