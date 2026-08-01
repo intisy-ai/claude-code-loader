@@ -5,10 +5,11 @@
 // Both list views: bold category headers, favorites pinned on top (and kept in
 // their category), Tab toggles a favorite, search ignores the favorites section.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
+import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../claude-code-proxy/dist/index.js";
 import * as caps from "./claude-caps.js";
 
@@ -57,54 +58,37 @@ function modelCache() {
 
 function allEntries() {
   const out = [];
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { return out; }
   const cache = modelCache();
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      for (const p of declared) {
-        const provider = p.name || repo;
-        const cached = cache[provider] && cache[provider].models;
-        if (cached) {
-          // prefer the live/cached catalog core-auth wrote at login
-          const scores = (cache[provider].scores) || {};
-          const scoreSource = cache[provider].scoreSource || "";
-          for (const model of Object.keys(cached)) {
-            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
-          }
-        } else {
-          // fall back to any static list the package still declares
-          for (const m of (p.models || [])) {
-            const model = typeof m === "string" ? m : m.id;
-            const name = typeof m === "string" ? m : (m.name || m.id);
-            out.push({ provider, model, name, id: provider + "/" + model });
-          }
-        }
+  for (const entry of readDeployedProviders(reposDir())) {
+    const provider = entry.provider;
+    const cached = cache[provider] && cache[provider].models;
+    if (cached) {
+      // prefer the live/cached catalog core-auth wrote at login
+      const scores = (cache[provider].scores) || {};
+      const scoreSource = cache[provider].scoreSource || "";
+      for (const model of Object.keys(cached)) {
+        out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
       }
-    } catch {}
+    } else {
+      // fall back to any static list the entry still declares
+      for (const m of (entry.models || [])) {
+        const model = typeof m === "string" ? m : m.id;
+        const name = typeof m === "string" ? m : (m.name || m.id);
+        out.push({ provider, model, name, id: provider + "/" + model });
+      }
+    }
   }
   return out;
 }
 
-function uniqueProviders() {
+export function uniqueProviders() {
   const order = [];
   const counts = {};
-  // Seed with EVERY declared provider (each repo's authProviders) so a provider with no
+  // Seed with EVERY deployed provider (declared + dynamic) so a provider with no
   // models yet (e.g. antigravity, whose models are fetched at login) is still listed and
   // selectable. Deriving the list purely from model rows (allEntries) hid model-less providers.
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { repos = []; }
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      for (const p of declared) {
-        const name = p.name || repo;
-        if (counts[name] === undefined) { counts[name] = 0; order.push(name); }
-      }
-    } catch {}
+  for (const entry of readDeployedProviders(reposDir())) {
+    if (counts[entry.provider] === undefined) { counts[entry.provider] = 0; order.push(entry.provider); }
   }
   for (const e of allEntries()) {
     if (counts[e.provider] === undefined) { counts[e.provider] = 0; order.push(e.provider); }
@@ -114,17 +98,8 @@ function uniqueProviders() {
 }
 
 function resolveHandlerPath(providerName) {
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { return null; }
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      const match = declared.find((p) => (p.name || repo) === providerName);
-      if (match && match.handler) return join(reposDir(), repo, match.handler);
-    } catch {}
-  }
-  return null;
+  const entry = readDeployedProviders(reposDir()).find((e) => e.provider === providerName);
+  return entry ? entry.handlerPath : null;
 }
 
 // open the provider's account/quota menu natively in-tab (shared with the
