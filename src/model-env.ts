@@ -12,8 +12,10 @@
 import { join } from "path";
 import { homedir } from "os";
 import { modelEnvPairs, anthropicProfile } from "../claude-code-proxy/dist/index.js";
+import { loaderConfigDir } from "../core-loader/dist/app-home.js";
 
-const configDir = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
+const APP_HOME = join(homedir(), ".claude");
+const configDir = loaderConfigDir(APP_HOME);
 const format = process.argv[2] || "sh";
 
 try {
