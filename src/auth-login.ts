@@ -6,9 +6,11 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
 
-function configDir() { return process.env.HUB_CONFIG_DIR || join(homedir(), ".claude"); }
-function reposDir() { return join(configDir(), "repos"); }
+const APP_HOME = join(homedir(), ".claude");
+function configDir() { return loaderConfigDir(APP_HOME); }
+function reposDir() { return loaderReposDir(APP_HOME); }
 
 function providers() {
   const out = [];

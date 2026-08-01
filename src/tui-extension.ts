@@ -10,10 +10,12 @@ import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../claude-code-proxy/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
+const APP_HOME = join(homedir(), ".claude");
 
 // Mapping slots are DETECTED from the claude-code catalog (new families like
 // Fable appear automatically) + the Default slot. Re-read per render/key.
@@ -27,8 +29,8 @@ function slots() {
 // source name renders in the list footer.
 function scoreTag(source) { return source ? "AA" : ""; }
 
-function configDir() { return process.env.HUB_CONFIG_DIR || join(homedir(), ".claude"); }
-function reposDir() { return join(configDir(), "repos"); }
+function configDir() { return loaderConfigDir(APP_HOME); }
+function reposDir() { return loaderReposDir(APP_HOME); }
 function configPath() { return join(configDir(), "config", "claude-code-loader.json"); }
 
 function readConfig() {
