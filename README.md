@@ -16,29 +16,29 @@ flowchart TD
     PLUGIN -->|deployCommands| CMDS["/claude-code-loader-config, /plugins, /accounts"]
     DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(core-auth providers)]
     CCBIN -->|run cc| TUI["core-loader TUI (node tui.js)"]
-    CCBIN -->|"cc auth"| AUTH[auth-login.js — provider + account menu]
+    CCBIN -->|"cc auth"| AUTH[auth-login.js (provider + account menu)]
     CCBIN -->|"ANTHROPIC_BASE_URL=:34567"| DAEMON
-    TUI --> PROV[Providers tab — tui-extension.js]
+    TUI --> PROV[Providers tab (tui-extension.js)]
 ```
 
 ## Structure
 
 - `src/`
-  - `plugin.ts` — the Claude Code plugin entry (`activate`/`cleanup`); installs the `cc` wrapper, runs plugin-updater, deploys commands. Also acts as the command CLI (`node plugin.js <config|plugins|accounts>`).
-  - `proxy.ts` — the always-on proxy daemon (`claudeHub.daemon`, port 34567) that routes Claude requests through provider accounts.
-  - `auth-login.ts` — `cc auth` provider selector + account menu.
-  - `tui-extension.ts` — the custom Providers/model-mapping tab.
-  - `commands.ts` — cross-app slash-command definitions + their CLI actions.
+  - `plugin.ts`: the Claude Code plugin entry (`activate`/`cleanup`); installs the `cc` wrapper, runs plugin-updater, deploys commands. Also acts as the command CLI (`node plugin.js <config|plugins|accounts>`).
+  - `proxy.ts`: the always-on proxy daemon (`claudeHub.daemon`, port 34567) that routes Claude requests through provider accounts.
+  - `auth-login.ts`: `cc auth` provider selector + account menu.
+  - `tui-extension.ts`: the custom Providers/model-mapping tab.
+  - `commands.ts`: cross-app slash-command definitions + their CLI actions.
 - `dist/`
-  - `plugin.js` — compiled plugin entry.
-  - `proxy.js` — compiled proxy daemon.
-  - `auth-login.js` — compiled auth-login helper.
-  - `tui-extension.js` — compiled Providers tab extension.
-  - `commands.js` — compiled command definitions.
+  - `plugin.js`: compiled plugin entry.
+  - `proxy.js`: compiled proxy daemon.
+  - `auth-login.js`: compiled auth-login helper.
+  - `tui-extension.js`: compiled Providers tab extension.
+  - `commands.js`: compiled command definitions.
 
 ## Requirements
 
-- Node.js 20+ (the TUI, proxy, and CLI all run under Node — no Bun required; Node 22+'s built-in `node:sqlite` reads the session DB, with `bun:sqlite` as a fallback when run under Bun).
+- Node.js 20+ (the TUI, proxy, and CLI all run under Node, no Bun required; Node 22+'s built-in `node:sqlite` reads the session DB, with `bun:sqlite` as a fallback when run under Bun).
 
 ## Installation
 

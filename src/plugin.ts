@@ -6,8 +6,11 @@ import { ensureNotifyDrainHook } from "../core-loader/dist/notify.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dist/loader-runtime.js";
 // @ts-ignore: generated bundle, no .d.ts
+import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines } from "../core-loader/dist/wrapper.js";
+// @ts-ignore: generated bundle, no .d.ts
 import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
-import { ensureAppCli } from "./ensure-app.js";
+// @ts-ignore: generated bundle, no .d.ts
+import { ensureAppCli } from "../core-loader/dist/ensure-app.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -38,23 +41,23 @@ defineReadme({
     PLUGIN -->|deployCommands| CMDS["/claude-code-loader-config, /plugins, /accounts"]
     DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(core-auth providers)]
     CCBIN -->|run cc| TUI["core-loader TUI (node tui.js)"]
-    CCBIN -->|"cc auth"| AUTH[auth-login.js — provider + account menu]
+    CCBIN -->|"cc auth"| AUTH[auth-login.js (provider + account menu)]
     CCBIN -->|"ANTHROPIC_BASE_URL=:34567"| DAEMON
-    TUI --> PROV[Providers tab — tui-extension.js]`,
+    TUI --> PROV[Providers tab (tui-extension.js)]`,
   structure: {
     src: [
-      "`plugin.ts` — the Claude Code plugin entry (`activate`/`cleanup`); installs the `cc` wrapper, runs plugin-updater, deploys commands. Also acts as the command CLI (`node plugin.js <config|plugins|accounts>`).",
-      "`proxy.ts` — the always-on proxy daemon (`claudeHub.daemon`, port 34567) that routes Claude requests through provider accounts.",
-      "`auth-login.ts` — `cc auth` provider selector + account menu.",
-      "`tui-extension.ts` — the custom Providers/model-mapping tab.",
-      "`commands.ts` — cross-app slash-command definitions + their CLI actions.",
+      "`plugin.ts`: the Claude Code plugin entry (`activate`/`cleanup`); installs the `cc` wrapper, runs plugin-updater, deploys commands. Also acts as the command CLI (`node plugin.js <config|plugins|accounts>`).",
+      "`proxy.ts`: the always-on proxy daemon (`claudeHub.daemon`, port 34567) that routes Claude requests through provider accounts.",
+      "`auth-login.ts`: `cc auth` provider selector + account menu.",
+      "`tui-extension.ts`: the custom Providers/model-mapping tab.",
+      "`commands.ts`: cross-app slash-command definitions + their CLI actions.",
     ],
     dist: [
-      "`plugin.js` — compiled plugin entry.",
-      "`proxy.js` — compiled proxy daemon.",
-      "`auth-login.js` — compiled auth-login helper.",
-      "`tui-extension.js` — compiled Providers tab extension.",
-      "`commands.js` — compiled command definitions.",
+      "`plugin.js`: compiled plugin entry.",
+      "`proxy.js`: compiled proxy daemon.",
+      "`auth-login.js`: compiled auth-login helper.",
+      "`tui-extension.js`: compiled Providers tab extension.",
+      "`commands.js`: compiled command definitions.",
     ],
   },
   commands: [
@@ -74,7 +77,7 @@ defineReadme({
       id: "requirements",
       title: "Requirements",
       after: "structure",
-      body: "- Node.js 20+ (the TUI, proxy, and CLI all run under Node — no Bun required; Node 22+'s built-in `node:sqlite` reads the session DB, with `bun:sqlite` as a fallback when run under Bun).",
+      body: "- Node.js 20+ (the TUI, proxy, and CLI all run under Node, no Bun required; Node 22+'s built-in `node:sqlite` reads the session DB, with `bun:sqlite` as a fallback when run under Bun).",
     },
     {
       id: "usage",
@@ -152,13 +155,7 @@ function installCcWrapper(configDir: string) {
       // so `claude` uses its own already-logged-in subscription auth.
       'if "%ROUTE%"=="1" ( set "ANTHROPIC_BASE_URL=http://127.0.0.1:34567" & set "ANTHROPIC_AUTH_TOKEN=sk-ant-loader-proxy" & set "ANTHROPIC_API_KEY=" )',
       // non-interactive subcommands dispatch to the node CLI before anything else
-      'set "_iscli="',
-      'if "%1"=="plugins" set "_iscli=1"',
-      'if "%1"=="providers" set "_iscli=1"',
-      'if "%1"=="proxy" set "_iscli=1"',
-      'if "%1"=="doctor" set "_iscli=1"',
-      `if defined _iscli if exist "${cliCandidates[0]}" ( node "${cliCandidates[0]}" %* & exit /b %errorlevel% )`,
-      `if defined _iscli if exist "${cliCandidates[1]}" ( node "${cliCandidates[1]}" %* & exit /b %errorlevel% )`,
+      ...cliDispatchCmdLines(cliCandidates),
       // If a proxy daemon is already running but its code is STALE (proxy.js was rebuilt
       // since the daemon stamped its start-marker), kill it so the start-below relaunches
       // the NEW code; otherwise a healthy-but-old daemon serves stale behaviour (e.g. an
@@ -297,21 +294,9 @@ function installCcWrapper(configDir: string) {
       // proxy env + model overrides this same wrapper may have set earlier.
       'route_env() { read_route; if [ "$ROUTE" = "1" ]; then ensure_proxy; else unset ANTHROPIC_BASE_URL; if [ "$ANTHROPIC_AUTH_TOKEN" = "sk-ant-loader-proxy" ]; then unset ANTHROPIC_AUTH_TOKEN; fi; if [ -f "$HUB_MODEL_ENV_JS" ] && command -v node >/dev/null 2>&1; then eval "$(node "$HUB_MODEL_ENV_JS" sh-unset 2>/dev/null)"; fi; fi; }',
       // non-interactive subcommands dispatch to the node CLI (no bun required)
-      'case "$1" in',
-      '  plugins|providers|proxy|doctor)',
-      "    for c in \\",
-      ...cliCandidates.map((candidate, index) =>
-        `      "${candidate}"${index < cliCandidates.length - 1 ? " \\" : "; do"}`),
-      '      if [ -f "$c" ] && command -v node >/dev/null 2>&1; then exec node "$c" "$@"; fi',
-      "    done ;;",
-      "esac",
+      ...cliDispatchShLines(cliCandidates),
       'if [ "$ROUTE" = "1" ]; then start_proxy_if_down; fi',
-      'TUI=""',
-      "for candidate in \\",
-      ...tuiCandidates.map((candidate, index) =>
-        `  "${candidate}"${index < tuiCandidates.length - 1 ? " \\" : "; do"}`),
-      '  if [ -f "$candidate" ]; then TUI="$candidate"; break; fi',
-      "done",
+      ...tuiCandidateResolveShLines(tuiCandidates),
       'if [ -z "$TUI" ] || ! command -v node >/dev/null 2>&1; then route_env; if [ -n "$HUB_LOGIN_ARG" ]; then exec claude /login; fi; exec claude "$@"; fi',
       // `cc auth ...` -> provider selector + account menu (fallback: Providers tab)
       `if [ "$1" = "auth" ]; then if [ -f "${authPath}" ]; then exec node "${authPath}"; else export HUB_OPEN_TAB="providers"; set --; fi; fi`,

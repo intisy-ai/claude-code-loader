@@ -5,14 +5,17 @@
 // Both list views: bold category headers, favorites pinned on top (and kept in
 // their category), Tab toggles a favorite, search ignores the favorites section.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile } from "../claude-code-proxy/dist/index.js";
+import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
+import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
+const APP_HOME = join(homedir(), ".claude");
 
 // Mapping slots are DETECTED from the claude-code catalog (new families like
 // Fable appear automatically) + the Default slot. Re-read per render/key.
@@ -26,8 +29,8 @@ function slots() {
 // source name renders in the list footer.
 function scoreTag(source) { return source ? "AA" : ""; }
 
-function configDir() { return process.env.HUB_CONFIG_DIR || join(homedir(), ".claude"); }
-function reposDir() { return join(configDir(), "repos"); }
+function configDir() { return loaderConfigDir(APP_HOME); }
+function reposDir() { return loaderReposDir(APP_HOME); }
 function configPath() { return join(configDir(), "config", "claude-code-loader.json"); }
 
 function readConfig() {
@@ -57,54 +60,37 @@ function modelCache() {
 
 function allEntries() {
   const out = [];
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { return out; }
   const cache = modelCache();
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      for (const p of declared) {
-        const provider = p.name || repo;
-        const cached = cache[provider] && cache[provider].models;
-        if (cached) {
-          // prefer the live/cached catalog core-auth wrote at login
-          const scores = (cache[provider].scores) || {};
-          const scoreSource = cache[provider].scoreSource || "";
-          for (const model of Object.keys(cached)) {
-            out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
-          }
-        } else {
-          // fall back to any static list the package still declares
-          for (const m of (p.models || [])) {
-            const model = typeof m === "string" ? m : m.id;
-            const name = typeof m === "string" ? m : (m.name || m.id);
-            out.push({ provider, model, name, id: provider + "/" + model });
-          }
-        }
+  for (const entry of readDeployedProviders(reposDir())) {
+    const provider = entry.provider;
+    const cached = cache[provider] && cache[provider].models;
+    if (cached) {
+      // prefer the live/cached catalog core-auth wrote at login
+      const scores = (cache[provider].scores) || {};
+      const scoreSource = cache[provider].scoreSource || "";
+      for (const model of Object.keys(cached)) {
+        out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
       }
-    } catch {}
+    } else {
+      // fall back to any static list the entry still declares
+      for (const m of (entry.models || [])) {
+        const model = typeof m === "string" ? m : m.id;
+        const name = typeof m === "string" ? m : (m.name || m.id);
+        out.push({ provider, model, name, id: provider + "/" + model });
+      }
+    }
   }
   return out;
 }
 
-function uniqueProviders() {
+export function uniqueProviders() {
   const order = [];
   const counts = {};
-  // Seed with EVERY declared provider (each repo's authProviders) so a provider with no
+  // Seed with EVERY deployed provider (declared + dynamic) so a provider with no
   // models yet (e.g. antigravity, whose models are fetched at login) is still listed and
   // selectable. Deriving the list purely from model rows (allEntries) hid model-less providers.
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { repos = []; }
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      for (const p of declared) {
-        const name = p.name || repo;
-        if (counts[name] === undefined) { counts[name] = 0; order.push(name); }
-      }
-    } catch {}
+  for (const entry of readDeployedProviders(reposDir())) {
+    if (counts[entry.provider] === undefined) { counts[entry.provider] = 0; order.push(entry.provider); }
   }
   for (const e of allEntries()) {
     if (counts[e.provider] === undefined) { counts[e.provider] = 0; order.push(e.provider); }
@@ -114,17 +100,8 @@ function uniqueProviders() {
 }
 
 function resolveHandlerPath(providerName) {
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { return null; }
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      const match = declared.find((p) => (p.name || repo) === providerName);
-      if (match && match.handler) return join(reposDir(), repo, match.handler);
-    } catch {}
-  }
-  return null;
+  const entry = readDeployedProviders(reposDir()).find((e) => e.provider === providerName);
+  return entry ? entry.handlerPath : null;
 }
 
 // open the provider's account/quota menu natively in-tab (shared with the
@@ -487,7 +464,11 @@ function handleKey(key, state, tuiApi) {
   if (typeof key === "string" && key.length === 1) { tab.search += key; tab.pickCursor = 0; }
 }
 
-export default function (tuiApi) {
+export default async function (tuiApi) {
+  // This tab runs in the TUI's own process (spawned separately from the plugin's
+  // activate()), so it must init core-proxy's eager-loaded TeaVM module itself,
+  // before the render/handleKey below make their first sync routing-decision call.
+  await initCoreProxy();
   tuiApi.registerTab({ id: "providers", label: "Providers", render, handleKey });
   // Register the Claude-specific implementations of core-loader's generic
   // app-capability contract (session titles, foreign-plugin listing, plugin

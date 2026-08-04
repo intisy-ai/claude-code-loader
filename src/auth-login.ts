@@ -2,27 +2,22 @@
 // `cc auth login`: a minimal provider selector (raw-stdin), then the chosen
 // provider's shared account menu (its menu() export), mirroring OpenCode's
 // oc auth login. Standalone blocking flow (owns stdin); not the loader TUI.
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
 
-function configDir() { return process.env.HUB_CONFIG_DIR || join(homedir(), ".claude"); }
-function reposDir() { return join(configDir(), "repos"); }
+const APP_HOME = join(homedir(), ".claude");
+function configDir() { return loaderConfigDir(APP_HOME); }
+function reposDir() { return loaderReposDir(APP_HOME); }
 
 function providers() {
   const out = [];
-  let repos = [];
-  try { repos = readdirSync(reposDir()); } catch { return out; }
-  for (const repo of repos) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(reposDir(), repo, "package.json"), "utf8"));
-      const declared = (pkg.claudeHub && pkg.claudeHub.authProviders) || pkg.authProviders || [];
-      for (const p of declared) {
-        const name = p.name || repo;
-        const handler = p.handler ? join(reposDir(), repo, p.handler) : null;
-        if (handler && existsSync(handler) && !out.find((x) => x.name === name)) out.push({ name, handler });
-      }
-    } catch {}
+  for (const entry of readDeployedProviders(reposDir())) {
+    if (existsSync(entry.handlerPath) && !out.find((x) => x.name === entry.provider)) {
+      out.push({ name: entry.provider, handler: entry.handlerPath });
+    }
   }
   return out;
 }
