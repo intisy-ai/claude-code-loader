@@ -10,7 +10,7 @@ import { join } from "path";
 import { homedir } from "os";
 import { startLoaderProxy } from "../core-loader/dist/proxy-runner.js";
 import { createProxyServer, anthropicProfile, makeDynamicResolver } from "../claude-code-proxy/dist/index.js";
-import { publishNotification } from "../core/dist/index.js";
+import { publishNotification, emitEvent } from "../core/dist/index.js";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);
 const CONFIG_DIR = process.env.HUB_CONFIG_DIR || join(homedir(), ".claude");
@@ -22,4 +22,5 @@ startLoaderProxy({
   configDir: CONFIG_DIR,
   port: PORT,
   notify: (message, level) => publishNotification(message, level || "warning", "core-proxy"),
+  emitActivity: (spec) => emitEvent(spec, "core-proxy"),
 });
