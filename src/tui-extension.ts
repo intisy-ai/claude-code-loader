@@ -12,7 +12,7 @@ import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
 import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
-import { readActivity } from "../core/dist/index.js";
+import { readActivity, emitEvent, withCause, activityEnv } from "../core/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -487,7 +487,12 @@ export default async function (tuiApi) {
       uninstallForeignPlugin: caps.uninstallForeignPlugin,
       mcpServers: caps.mcpServers,
       addMcpServer: caps.addMcpServer,
-      activity: { read: () => { try { return readActivity([configDir()], { limit: 200 }).records; } catch { return []; } } },
+      activity: {
+        read: () => { try { return readActivity([configDir()], { limit: 200 }).records; } catch { return []; } },
+        emit: (spec) => { try { emitEvent(spec, "claude-code-loader"); } catch {} },
+        scope: withCause,
+        env: activityEnv,
+      },
     });
   }
 }
