@@ -12,7 +12,7 @@ import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
 import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
-import { readActivity, emitEvent, withCause, activityEnv } from "../core/dist/index.js";
+import { readActivity, emitEvent, withCause, activityEnv, setActivityContext } from "../core/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -471,6 +471,7 @@ export default async function (tuiApi) {
   // before the render/handleKey below make their first sync routing-decision call.
   await initCoreProxy();
   tuiApi.registerTab({ id: "providers", label: "Providers", render, handleKey });
+  setActivityContext({ entry: "tui" });
   // Register the Claude-specific implementations of core-loader's generic
   // app-capability contract (session titles, foreign-plugin listing, plugin
   // marketplaces, MCP servers); see src/claude-caps.ts. Guarded: an
