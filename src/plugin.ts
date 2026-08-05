@@ -8,7 +8,7 @@ import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dis
 // @ts-ignore: generated bundle, no .d.ts
 import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines } from "../core-loader/dist/wrapper.js";
 // @ts-ignore: generated bundle, no .d.ts
-import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, emitEvent, withCause, activityEnv } from "../core/dist/index.js";
+import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "../core/dist/index.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { ensureAppCli } from "../core-loader/dist/ensure-app.js";
 // @ts-ignore: generated bundle, no .d.ts
@@ -350,11 +350,7 @@ export async function cleanup(configDir?: string) {
 export async function activate() {
   const configDir = getAppConfigDir();
   try {
-    setActivitySeam({
-      emit: (spec) => { try { emitEvent(spec, "claude-code-loader"); } catch {} },
-      scope: withCause,
-      env: activityEnv,
-    });
+    setActivitySeam(createActivitySeam("claude-code-loader"));
     emitPluginActivated("claude-code-loader");
   } catch (e) {
     writeLog(configDir, "Failed to wire activity: " + e, true);
