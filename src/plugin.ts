@@ -8,9 +8,11 @@ import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "../core-loader/dis
 // @ts-ignore: generated bundle, no .d.ts
 import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines } from "../core-loader/dist/wrapper.js";
 // @ts-ignore: generated bundle, no .d.ts
-import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli } from "../core/dist/index.js";
+import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "../core/dist/index.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { ensureAppCli } from "../core-loader/dist/ensure-app.js";
+// @ts-ignore: generated bundle, no .d.ts
+import { setActivitySeam, emitPluginActivated } from "../core-loader/dist/activity-seam.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -347,6 +349,12 @@ export async function cleanup(configDir?: string) {
 
 export async function activate() {
   const configDir = getAppConfigDir();
+  try {
+    setActivitySeam(createActivitySeam("claude-code-loader"));
+    emitPluginActivated("claude-code-loader");
+  } catch (e) {
+    writeLog(configDir, "Failed to wire activity: " + e, true);
+  }
   writeLog(configDir, "Claude Loader activating");
 
   try {
