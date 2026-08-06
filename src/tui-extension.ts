@@ -7,12 +7,15 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { pathToFileURL } from "url";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
 import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
 import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
+import { extraProviderRows } from "../core-loader/dist/provider-rows.js";
+import { getUpdater, setupPlugin } from "../core-loader/dist/updater.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
-import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema } from "../core/dist/index.js";
+import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema, pluginByCapability, getConfigValue, setConfigValue } from "../core/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -82,6 +85,35 @@ function allEntries() {
     }
   }
   return out;
+}
+
+// The view's own rows, from core-loader so every loader shows the same ones. Everything they
+// need that lives in core or in this loader is passed in.
+function ownRows() {
+  return extraProviderRows({
+    reposDir: reposDir(),
+    pluginByCapability,
+    getConfigValue,
+    setConfigValue,
+    // The plugin owns its credentials and its own provider manifest, so it is asked to do
+    // both rather than the loader reaching into either.
+    applyEndpoint: async function (engine, endpoint, key) {
+      var handler = join(reposDir(), engine.id, "dist", "handler.js");
+      var mod = await import(pathToFileURL(handler).href);
+      if (key && typeof mod.saveKey === "function") mod.saveKey(endpoint.id, key);
+      if (typeof mod.writeDynamicManifest === "function") mod.writeDynamicManifest(join(reposDir(), engine.id));
+    },
+    hasManager: () => !!getUpdater(),
+    openAction: (action, tuiApi, title) => menu.openAction(action, tuiApi, title),
+    install: (engine, tuiApi) => {
+      try { if (tuiApi.flash) tuiApi.flash("Installing " + engine.id + "…"); } catch {}
+      setupPlugin({ name: engine.id, url: engine.url }, (err) => {
+        try { if (tuiApi.flash) tuiApi.flash(err ? "Install failed: " + err : engine.id + " installed"); } catch {}
+        if (tuiApi.refresh) tuiApi.refresh();
+      });
+      return true;
+    },
+  });
 }
 
 export function uniqueProviders() {
@@ -264,6 +296,12 @@ function renderSlots(h) {
     const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + p.name + h.RST + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, sel);
   });
+  const rows = ownRows();
+  rows.forEach((r, k) => {
+    const sel = tab.cursor === SLOTS.length + provs.length + k;
+    const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
+    h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.ACCENT) + r.label + h.RST + h.DIM + "  " + r.hint + h.RST, sel);
+  });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
   h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   M Map all tiers   R Routing   Tab Switch   Q Quit" + h.RST);
@@ -358,7 +396,8 @@ function handleKey(key, state, tuiApi) {
   if (tab.mode === "slots") {
     const SLOTS = slots();
     const provs = uniqueProviders();
-    const total = SLOTS.length + provs.length;
+    const rows = ownRows();
+    const total = SLOTS.length + provs.length + rows.length;
     if (key === "up" || key === "w") { tab.cursor = (tab.cursor - 1 + total) % total; return; }
     if (key === "down" || key === "s") { tab.cursor = (tab.cursor + 1) % total; return; }
     if (key === "r" || key === "R") {
@@ -372,7 +411,7 @@ function handleKey(key, state, tuiApi) {
       } catch {}
       return;
     }
-    if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
+    if (key === "a" && tab.cursor >= SLOTS.length && tab.cursor < SLOTS.length + provs.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "m" || key === "M") {
       // open the map-all picker: choose the provider explicitly (or reset)
       tab.mode = "mapall"; tab.mapCursor = 0;
@@ -383,9 +422,11 @@ function handleKey(key, state, tuiApi) {
         // a Claude tier -> edit its model chain (primary + ordered fallbacks)
         tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "chain"; tab.chainCursor = 0;
         if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(false);
-      } else {
+      } else if (tab.cursor < SLOTS.length + provs.length) {
         // a provider -> open its account/quota menu in-tab (OpenCode parity)
         openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi);
+      } else {
+        rows[tab.cursor - SLOTS.length - provs.length].run(tuiApi);
       }
     }
     return;
