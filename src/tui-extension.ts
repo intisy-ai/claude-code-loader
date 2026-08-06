@@ -89,19 +89,31 @@ function allEntries() {
 
 // The view's own rows, from core-loader so every loader shows the same ones. Everything they
 // need that lives in core or in this loader is passed in.
+// The deployed plugin's endpoint API, loaded once.
+var endpointsApiCache = null;
+async function endpointsApi(engine) {
+  if (!endpointsApiCache) {
+    var handler = join(reposDir(), engine.id, "dist", "handler.js");
+    endpointsApiCache = await import(pathToFileURL(handler).href);
+  }
+  return endpointsApiCache;
+}
+
 function ownRows() {
   return extraProviderRows({
     reposDir: reposDir(),
     pluginByCapability,
     getConfigValue,
     setConfigValue,
-    // The plugin owns its credentials and its own provider manifest, so it is asked to do
-    // both rather than the loader reaching into either.
-    applyEndpoint: async function (engine, endpoint, key) {
-      var handler = join(reposDir(), engine.id, "dist", "handler.js");
-      var mod = await import(pathToFileURL(handler).href);
-      if (key && typeof mod.saveKey === "function") mod.saveKey(endpoint.id, key);
-      if (typeof mod.writeDynamicManifest === "function") mod.writeDynamicManifest(join(reposDir(), engine.id));
+    // The plugin owns what an endpoint is, whether one would work, and how it becomes
+    // routable, so it is asked for all three rather than any of it living here.
+    validate: async function (engine, endpoint) {
+      return (await endpointsApi(engine)).validateEndpoint(endpoint);
+    },
+    addEndpoint: async function (engine, endpoint, key) {
+      var api = await endpointsApi(engine);
+      api.upsertEndpoint(endpoint, join(reposDir(), engine.id));
+      if (key) api.saveKey(endpoint.id, key);
     },
     hasManager: () => !!getUpdater(),
     openAction: (action, tuiApi, title) => menu.openAction(action, tuiApi, title),
