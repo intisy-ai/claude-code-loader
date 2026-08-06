@@ -10,7 +10,7 @@ import { join } from "path";
 import { pathToFileURL } from "url";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { modelEntries, providerRows } from "../core-loader/dist/provider-catalog.js";
 import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
 import { extraProviderRows } from "../core-loader/dist/provider-rows.js";
 import { getUpdater, setupPlugin } from "../core-loader/dist/updater.js";
@@ -50,41 +50,10 @@ function writeConfig(cfg) {
   } catch {}
 }
 
-// the live catalog core-auth fetched per provider (configDir/config/models.json;
-// falls back to the pre-rename core-auth-models.json during the transition)
-function modelCache() {
-  for (const f of ["models.json", "core-auth-models.json"]) {
-    try {
-      const p = join(configDir(), "config", f);
-      if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")) || {};
-    } catch {}
-  }
-  return {};
-}
-
+// Every model, and every provider with its count, come from core-loader so this loader and
+// the OpenCode one cannot report different numbers for the same home.
 function allEntries() {
-  const out = [];
-  const cache = modelCache();
-  for (const entry of readDeployedProviders(reposDir())) {
-    const provider = entry.provider;
-    const cached = cache[provider] && cache[provider].models;
-    if (cached) {
-      // prefer the live/cached catalog core-auth wrote at login
-      const scores = (cache[provider].scores) || {};
-      const scoreSource = cache[provider].scoreSource || "";
-      for (const model of Object.keys(cached)) {
-        out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
-      }
-    } else {
-      // fall back to any static list the entry still declares
-      for (const m of (entry.models || [])) {
-        const model = typeof m === "string" ? m : m.id;
-        const name = typeof m === "string" ? m : (m.name || m.id);
-        out.push({ provider, model, name, id: provider + "/" + model });
-      }
-    }
-  }
-  return out;
+  return modelEntries(reposDir(), configDir());
 }
 
 // The view's own rows, from core-loader so every loader shows the same ones. Everything they
@@ -129,24 +98,12 @@ function ownRows() {
 }
 
 export function uniqueProviders() {
-  const order = [];
-  const counts = {};
-  // Seed with EVERY deployed provider (declared + dynamic) so a provider with no
-  // models yet (e.g. antigravity, whose models are fetched at login) is still listed and
-  // selectable. Deriving the list purely from model rows (allEntries) hid model-less providers.
-  for (const entry of readDeployedProviders(reposDir())) {
-    if (counts[entry.provider] === undefined) { counts[entry.provider] = 0; order.push(entry.provider); }
-  }
-  for (const e of allEntries()) {
-    if (counts[e.provider] === undefined) { counts[e.provider] = 0; order.push(e.provider); }
-    counts[e.provider]++;
-  }
-  return order.map((name) => ({ name, count: counts[name] }));
+  return providerRows(reposDir(), configDir()).map((row) => ({ name: row.id, count: row.count }));
 }
 
 function resolveHandlerPath(providerName) {
-  const entry = readDeployedProviders(reposDir()).find((e) => e.provider === providerName);
-  return entry ? entry.handlerPath : null;
+  const row = providerRows(reposDir(), configDir()).find((r) => r.id === providerName);
+  return row ? row.handler : null;
 }
 
 // open the provider's account/quota menu natively in-tab (shared with the
