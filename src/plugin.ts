@@ -6,9 +6,9 @@ import { ensureNotifyDrainHook } from "@intisy-ai/core-loader/dist/notify.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "@intisy-ai/core-loader/dist/loader-runtime.js";
 // @ts-ignore: generated bundle, no .d.ts
-import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines } from "@intisy-ai/core-loader/dist/wrapper.js";
+import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines, subdirEnvCmdLines, subdirEnvShLines } from "@intisy-ai/core-loader/dist/wrapper.js";
 // @ts-ignore: generated bundle, no .d.ts
-import { getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "@intisy-ai/core";
+import { getAppDescriptor, getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "@intisy-ai/core";
 // @ts-ignore: generated bundle, no .d.ts
 import { ensureAppCli } from "@intisy-ai/core-loader/dist/ensure-app.js";
 // @ts-ignore: generated bundle, no .d.ts
@@ -134,6 +134,7 @@ function installCcWrapper(configDir: string) {
       "@echo off",
       "setlocal",
       'set "HUB_CONFIG_DIR=%USERPROFILE%\\.claude"',
+      ...subdirEnvCmdLines(getAppDescriptor("claude")?.paths ?? {}),
       "set HUB_APP_NAME=Claude Code",
       "set HUB_CLI_CMD=claude",
       "set HUB_NPM_PKG=@anthropic-ai/claude-code",
@@ -249,6 +250,7 @@ function installCcWrapper(configDir: string) {
       "#!/bin/sh",
       'export PATH="$HOME/.bun/bin:$PATH"',
       'export HUB_CONFIG_DIR="$HOME/.claude"',
+      ...subdirEnvShLines(getAppDescriptor('claude')?.paths ?? {}),
       'export HUB_APP_NAME="Claude Code"',
       'export HUB_CLI_CMD="claude"',
       'export HUB_NPM_PKG="@anthropic-ai/claude-code"',
