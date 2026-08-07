@@ -9,7 +9,7 @@
 import { join } from "path";
 import { homedir } from "os";
 import { startLoaderProxy } from "@intisy-ai/core-loader/dist/proxy-runner.js";
-import { createProxyServer, anthropicProfile, makeDynamicResolver } from "../claude-code-proxy/dist/index.js";
+import { createProxyServer, anthropicProfile, makeDynamicResolver } from "@intisy-ai/claude-code-proxy";
 import { publishNotification, emitEvent, setActivityContext } from "@intisy-ai/core";
 
 const PORT = parseInt(process.env.HUB_PROXY_PORT || "34567", 10);

@@ -14,7 +14,7 @@
     "skipLibCheck": true,
     // Compiled from the submodules, not installed, so each specifier maps to the
     // built output it resolves to at runtime.
-    "paths": { "@intisy-ai/core": ["./core/dist/index.d.ts"], "@intisy-ai/core-loader/*": ["./core-loader/*"] },
+    "paths": { "@intisy-ai/core": ["./core/dist/index.d.ts"], "@intisy-ai/core-loader/*": ["./core-loader/*"], "@intisy-ai/claude-code-proxy": ["./claude-code-proxy/dist/index.d.ts"] },
     "types": ["node"],
     "lib": ["esnext"]
   },

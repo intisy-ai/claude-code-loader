@@ -14,7 +14,7 @@ import { modelEntries, providerRows } from "@intisy-ai/core-loader/dist/provider
 import { loaderConfigDir, loaderReposDir } from "@intisy-ai/core-loader/dist/app-home.js";
 import { extraProviderRows } from "@intisy-ai/core-loader/dist/provider-rows.js";
 import { getUpdater, setupPlugin } from "@intisy-ai/core-loader/dist/updater.js";
-import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
+import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "@intisy-ai/claude-code-proxy";
 import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema, pluginByCapability, getConfigValue, setConfigValue } from "@intisy-ai/core";
 import * as caps from "./claude-caps.js";
 

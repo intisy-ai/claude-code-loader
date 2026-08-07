@@ -19,7 +19,7 @@
 import { join } from "path";
 import { homedir } from "os";
 import { existsSync, readFileSync } from "fs";
-import { anthropicProfile } from "../claude-code-proxy/dist/index.js";
+import { anthropicProfile } from "@intisy-ai/claude-code-proxy";
 import { loaderConfigDir } from "@intisy-ai/core-loader/dist/app-home.js";
 
 const APP_HOME = join(homedir(), ".claude");
