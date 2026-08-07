@@ -4,7 +4,7 @@
 // `systemMessage` (shown to the USER, never added to the model's context). Queue
 // semantics: a persisted cursor means each notification surfaces exactly once, even
 // across the concurrent hook invocations a long turn produces.
-import { drain, TOPICS } from "../core/dist/index.js";
+import { drain, TOPICS } from "@intisy-ai/core";
 
 export function busDrain() {
   const messages = [];

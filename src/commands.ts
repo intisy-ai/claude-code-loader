@@ -4,8 +4,8 @@
 // Claude command dir, the loader's runtime entry, and the `cc auth` hint.
 import { join } from "path";
 import { existsSync } from "fs";
-import { runConfigCli } from "../core/dist/index.js";
-import { makeLoaderCommands } from "../core-loader/dist/loader-commands.js";
+import { runConfigCli } from "@intisy-ai/core";
+import { makeLoaderCommands } from "@intisy-ai/core-loader/dist/loader-commands.js";
 import { busDrain } from "./notify-drain.js";
 
 function loaderEntry(configDir) {
