@@ -7,12 +7,15 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { pathToFileURL } from "url";
 import { homedir } from "os";
 import { createAccountMenu } from "../core-loader/dist/account-menu.js";
-import { readDeployedProviders } from "../core-loader/dist/loader-runtime.js";
+import { modelEntries, providerRows } from "../core-loader/dist/provider-catalog.js";
 import { loaderConfigDir, loaderReposDir } from "../core-loader/dist/app-home.js";
+import { extraProviderRows } from "../core-loader/dist/provider-rows.js";
+import { getUpdater, setupPlugin } from "../core-loader/dist/updater.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
-import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema } from "../core/dist/index.js";
+import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema, pluginByCapability, getConfigValue, setConfigValue } from "../core/dist/index.js";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -47,62 +50,60 @@ function writeConfig(cfg) {
   } catch {}
 }
 
-// the live catalog core-auth fetched per provider (configDir/config/models.json;
-// falls back to the pre-rename core-auth-models.json during the transition)
-function modelCache() {
-  for (const f of ["models.json", "core-auth-models.json"]) {
-    try {
-      const p = join(configDir(), "config", f);
-      if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8")) || {};
-    } catch {}
-  }
-  return {};
+// Every model, and every provider with its count, come from core-loader so this loader and
+// the OpenCode one cannot report different numbers for the same home.
+function allEntries() {
+  return modelEntries(reposDir(), configDir());
 }
 
-function allEntries() {
-  const out = [];
-  const cache = modelCache();
-  for (const entry of readDeployedProviders(reposDir())) {
-    const provider = entry.provider;
-    const cached = cache[provider] && cache[provider].models;
-    if (cached) {
-      // prefer the live/cached catalog core-auth wrote at login
-      const scores = (cache[provider].scores) || {};
-      const scoreSource = cache[provider].scoreSource || "";
-      for (const model of Object.keys(cached)) {
-        out.push({ provider, model, name: (cached[model] && cached[model].name) || model, id: provider + "/" + model, score: typeof scores[model] === "number" ? scores[model] : undefined, scoreSource });
-      }
-    } else {
-      // fall back to any static list the entry still declares
-      for (const m of (entry.models || [])) {
-        const model = typeof m === "string" ? m : m.id;
-        const name = typeof m === "string" ? m : (m.name || m.id);
-        out.push({ provider, model, name, id: provider + "/" + model });
-      }
-    }
+// The view's own rows, from core-loader so every loader shows the same ones. Everything they
+// need that lives in core or in this loader is passed in.
+// The deployed plugin's endpoint API, loaded once.
+var endpointsApiCache = null;
+async function endpointsApi(engine) {
+  if (!endpointsApiCache) {
+    var handler = join(reposDir(), engine.id, "dist", "handler.js");
+    endpointsApiCache = await import(pathToFileURL(handler).href);
   }
-  return out;
+  return endpointsApiCache;
+}
+
+function ownRows() {
+  return extraProviderRows({
+    reposDir: reposDir(),
+    pluginByCapability,
+    getConfigValue,
+    setConfigValue,
+    // The plugin owns what an endpoint is, whether one would work, and how it becomes
+    // routable, so it is asked for all three rather than any of it living here.
+    validate: async function (engine, endpoint) {
+      return (await endpointsApi(engine)).validateEndpoint(endpoint);
+    },
+    addEndpoint: async function (engine, endpoint, key) {
+      var api = await endpointsApi(engine);
+      api.upsertEndpoint(endpoint, join(reposDir(), engine.id));
+      if (key) api.saveKey(endpoint.id, key);
+    },
+    hasManager: () => !!getUpdater(),
+    openAction: (action, tuiApi, title) => menu.openAction(action, tuiApi, title),
+    install: (engine, tuiApi) => {
+      try { if (tuiApi.flash) tuiApi.flash("Installing " + engine.id + "…"); } catch {}
+      setupPlugin({ name: engine.id, url: engine.url }, (err) => {
+        try { if (tuiApi.flash) tuiApi.flash(err ? "Install failed: " + err : engine.id + " installed"); } catch {}
+        if (tuiApi.refresh) tuiApi.refresh();
+      });
+      return true;
+    },
+  });
 }
 
 export function uniqueProviders() {
-  const order = [];
-  const counts = {};
-  // Seed with EVERY deployed provider (declared + dynamic) so a provider with no
-  // models yet (e.g. antigravity, whose models are fetched at login) is still listed and
-  // selectable. Deriving the list purely from model rows (allEntries) hid model-less providers.
-  for (const entry of readDeployedProviders(reposDir())) {
-    if (counts[entry.provider] === undefined) { counts[entry.provider] = 0; order.push(entry.provider); }
-  }
-  for (const e of allEntries()) {
-    if (counts[e.provider] === undefined) { counts[e.provider] = 0; order.push(e.provider); }
-    counts[e.provider]++;
-  }
-  return order.map((name) => ({ name, count: counts[name] }));
+  return providerRows(reposDir(), configDir()).map((row) => ({ name: row.id, count: row.count }));
 }
 
 function resolveHandlerPath(providerName) {
-  const entry = readDeployedProviders(reposDir()).find((e) => e.provider === providerName);
-  return entry ? entry.handlerPath : null;
+  const row = providerRows(reposDir(), configDir()).find((r) => r.id === providerName);
+  return row ? row.handler : null;
 }
 
 // open the provider's account/quota menu natively in-tab (shared with the
@@ -264,6 +265,12 @@ function renderSlots(h) {
     const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
     h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.GRAY) + p.name + h.RST + h.DIM + "  (" + p.count + " model" + (p.count === 1 ? "" : "s") + ")" + h.RST, sel);
   });
+  const rows = ownRows();
+  rows.forEach((r, k) => {
+    const sel = tab.cursor === SLOTS.length + provs.length + k;
+    const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
+    h.pushBody("  " + gutter + (sel ? h.BG_SEL + h.BOLD + h.WHITE : h.ACCENT) + r.label + h.RST + h.DIM + "  " + r.hint + h.RST, sel);
+  });
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
   h.pushFoot("  " + h.DIM + "^v Move   Enter (tier=edit chain · provider=accounts)   M Map all tiers   R Routing   Tab Switch   Q Quit" + h.RST);
@@ -358,7 +365,8 @@ function handleKey(key, state, tuiApi) {
   if (tab.mode === "slots") {
     const SLOTS = slots();
     const provs = uniqueProviders();
-    const total = SLOTS.length + provs.length;
+    const rows = ownRows();
+    const total = SLOTS.length + provs.length + rows.length;
     if (key === "up" || key === "w") { tab.cursor = (tab.cursor - 1 + total) % total; return; }
     if (key === "down" || key === "s") { tab.cursor = (tab.cursor + 1) % total; return; }
     if (key === "r" || key === "R") {
@@ -372,7 +380,7 @@ function handleKey(key, state, tuiApi) {
       } catch {}
       return;
     }
-    if (key === "a" && tab.cursor >= SLOTS.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
+    if (key === "a" && tab.cursor >= SLOTS.length && tab.cursor < SLOTS.length + provs.length) { openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi); return; }
     if (key === "m" || key === "M") {
       // open the map-all picker: choose the provider explicitly (or reset)
       tab.mode = "mapall"; tab.mapCursor = 0;
@@ -383,9 +391,11 @@ function handleKey(key, state, tuiApi) {
         // a Claude tier -> edit its model chain (primary + ordered fallbacks)
         tab.editingSlot = SLOTS[tab.cursor].key; tab.mode = "chain"; tab.chainCursor = 0;
         if (tuiApi && tuiApi.setTextInput) tuiApi.setTextInput(false);
-      } else {
+      } else if (tab.cursor < SLOTS.length + provs.length) {
         // a provider -> open its account/quota menu in-tab (OpenCode parity)
         openAccounts(provs[tab.cursor - SLOTS.length].name, tuiApi);
+      } else {
+        rows[tab.cursor - SLOTS.length - provs.length].run(tuiApi);
       }
     }
     return;
