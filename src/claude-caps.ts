@@ -11,7 +11,7 @@ import { existsSync, readFileSync, readdirSync, statSync, openSync, readSync, cl
 import { execFileSync } from "child_process";
 import { join } from "path";
 import { homedir } from "os";
-import { loaderConfigDir } from "../core-loader/dist/app-home.js";
+import { loaderConfigDir } from "@intisy-ai/core-loader/dist/app-home.js";
 
 const APP_HOME = join(homedir(), ".claude");
 

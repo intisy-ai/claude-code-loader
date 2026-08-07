@@ -8,7 +8,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { uniqueProviders } from "../tui-extension.js";
 import tuiExtension from "../tui-extension.js";
-import { claudeTiers, anthropicProfile } from "../../claude-code-proxy/dist/index.js";
+import { claudeTiers, anthropicProfile } from "@intisy-ai/claude-code-proxy";
 
 let homeDir;
 let prevConfigDir;

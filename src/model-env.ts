@@ -11,8 +11,8 @@
 
 import { join } from "path";
 import { homedir } from "os";
-import { modelEnvPairs, anthropicProfile, initCoreProxy } from "../claude-code-proxy/dist/index.js";
-import { loaderConfigDir } from "../core-loader/dist/app-home.js";
+import { modelEnvPairs, anthropicProfile, initCoreProxy } from "@intisy-ai/claude-code-proxy";
+import { loaderConfigDir } from "@intisy-ai/core-loader/dist/app-home.js";
 
 const APP_HOME = join(homedir(), ".claude");
 const configDir = loaderConfigDir(APP_HOME);
