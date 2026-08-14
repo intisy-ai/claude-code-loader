@@ -70,3 +70,23 @@ test("uniqueProviders: still lists a package.json-declared provider alongside th
   expect(names).toContain("stub");
   expect(names).toContain("my-endpoint");
 });
+
+// The host builds every plugin's context from this runtime. core-loader carries no core submodule
+// and starts no host at all when nothing is injected, so a loader that stops registering it leaves
+// every plugin screen and setting silently empty.
+test("the extension registers a runtime the plugin host can build a context from", async () => {
+  const registered = {};
+  const tuiApi = {
+    registerTab: () => {},
+    registerCapabilities: (caps) => Object.assign(registered, caps),
+  };
+
+  await tuiExtension(tuiApi);
+
+  expect(typeof registered.runtimeFor).toBe("function");
+  const runtime = registered.runtimeFor({ id: "demo", api: 1 });
+  expect(typeof runtime.config.all).toBe("function");
+  expect(typeof runtime.log.info).toBe("function");
+  expect(typeof runtime.paths.home).toBe("string");
+  expect(typeof runtime.events.publish).toBe("function");
+});
