@@ -7,7 +7,6 @@ import { ensureNotifyDrainHook } from "@intisy-ai/core-loader/dist/notify.js";
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "@intisy-ai/core-loader/dist/loader-runtime.js";
 // @ts-ignore: generated bundle, no .d.ts
 import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines, subdirEnvCmdLines, subdirEnvShLines } from "@intisy-ai/core-loader/dist/wrapper.js";
-// @ts-ignore: generated bundle, no .d.ts
 import { getAppDescriptor, getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "@intisy-ai/core";
 // @ts-ignore: generated bundle, no .d.ts
 import { ensureAppCli } from "@intisy-ai/core-loader/dist/ensure-app.js";
@@ -352,6 +351,8 @@ export async function cleanup(configDir?: string) {
 export async function activate() {
   const configDir = getAppConfigDir();
   try {
+    // @ts-expect-error core types the emitter to its spec, core-loader to the bare record it
+    // builds, and this loader is the only component holding both.
     setActivitySeam(createActivitySeam("claude-code-loader"));
     emitPluginActivated("claude-code-loader");
   } catch (e) {
