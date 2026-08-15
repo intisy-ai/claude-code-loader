@@ -136,6 +136,8 @@ function installCcWrapper(configDir: string) {
       ...subdirEnvCmdLines(getAppDescriptor("claude")?.paths ?? {}),
       "set HUB_APP_NAME=Claude Code",
       "set HUB_CLI_CMD=claude",
+      // core-loader is app-agnostic and must not guess this; must match cairn.json app.id.
+      "set HUB_APP_ID=claude",
       "set HUB_NPM_PKG=@anthropic-ai/claude-code",
       `set "HUB_TUI_EXTENSION=${extPath}"`,
       // ROUTE=1 -> provider routing (proxy + provider accounts, current/default
@@ -252,6 +254,8 @@ function installCcWrapper(configDir: string) {
       ...subdirEnvShLines(getAppDescriptor('claude')?.paths ?? {}),
       'export HUB_APP_NAME="Claude Code"',
       'export HUB_CLI_CMD="claude"',
+      // core-loader is app-agnostic and must not guess this; must match cairn.json app.id.
+      'export HUB_APP_ID="claude"',
       'export HUB_NPM_PKG="@anthropic-ai/claude-code"',
       `export HUB_TUI_EXTENSION="${extPath}"`,
       // route through the always-on loader proxy so login/onboarding is skipped.
