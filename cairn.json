@@ -15,6 +15,10 @@
     "proxyPort": 34567,
     "integration": "env-baseurl",
     "wireFormat": "anthropic",
-    "usage": { "formats": ["claude-jsonl"] }
+    "usage": { "formats": ["claude-jsonl"] },
+    "accent": "#d7875f",
+    "wrapperCommand": "cc",
+    "discovery": { "topic": "claude-code-plugin" },
+    "projects": { "historyFile": "history.jsonl" }
   }
 }
