@@ -43,7 +43,7 @@
     }
   },
   "scripts": {
-    "build": "npm --prefix claude-code-proxy install && npm --prefix claude-code-proxy run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core install && npm --prefix core run build && npx tsc && node build.mjs",
+    "build": "npm --prefix claude-code-proxy install && npm --prefix claude-code-proxy run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core install && npm --prefix core run build && npm --prefix plugin-host install && npm --prefix plugin-host run build && npx tsc && node build.mjs",
     "postbuild": "node dist/plugin.js readme",
     "prepublishOnly": "npm run build",
     "test": "npm run build && vitest run"
@@ -58,6 +58,7 @@
   "dependencies": {
     "@intisy-ai/core": "file:core",
     "@intisy-ai/core-loader": "file:core-loader",
-    "@intisy-ai/claude-code-proxy": "file:claude-code-proxy"
+    "@intisy-ai/claude-code-proxy": "file:claude-code-proxy",
+    "@intisy-ai/plugin-host": "file:plugin-host"
   }
 }

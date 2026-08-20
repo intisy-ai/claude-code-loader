@@ -12,7 +12,7 @@ import { execFileSync } from "child_process";
 import { join } from "path";
 import { homedir } from "os";
 import { loaderConfigDir } from "@intisy-ai/core-loader/dist/app-home.js";
-import { readDeployedManifests } from "@intisy-ai/core-loader/dist/plugin-manifests.js";
+import { readDeployedManifests } from "@intisy-ai/plugin-host";
 import { homePaths } from "@intisy-ai/core-loader/dist/home-paths.js";
 
 const APP_HOME = join(homedir(), ".claude");
