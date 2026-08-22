@@ -51,7 +51,6 @@
   "devDependencies": {
     "esbuild": "^0.25.12",
     "@types/node": "^25.9.1",
-    "plugin-updater": "^1.0.21",
     "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   },
