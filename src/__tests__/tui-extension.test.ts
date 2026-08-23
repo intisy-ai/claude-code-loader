@@ -89,3 +89,21 @@ test("the extension registers a runtime the plugin host can build a context from
   expect(typeof runtime.paths.home).toBe("string");
   expect(typeof runtime.events.publish).toBe("function");
 });
+
+// core mints these ids and core-loader takes no core submodule, so they reach the plugin host only
+// if this loader passes them. Without them the host cannot tell an unrecognised capability from an
+// unverifiable one, and a plugin's typo goes unreported.
+test("the extension registers the capability vocabulary from the library that mints it", async () => {
+  const registered = {};
+  const tuiApi = {
+    registerTab: () => {},
+    registerCapabilities: (caps) => Object.assign(registered, caps),
+  };
+
+  await tuiExtension(tuiApi);
+
+  expect(registered.vocabulary.map((entry) => entry.id).sort())
+    .toEqual(["custom-endpoints", "plugin-management", "screens", "settings"]);
+  expect(registered.wellKnownServices.map((entry) => entry.id).sort())
+    .toEqual(["accounts", "activity", "routing"]);
+});
