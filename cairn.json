@@ -18,6 +18,11 @@
     "usage": { "formats": ["claude-jsonl"] },
     "accent": "#d7875f",
     "wrapperCommand": "cc",
+    "startupHook": {
+      "file": "settings.json",
+      "path": ["hooks", "SessionStart"],
+      "entry": { "hooks": [{ "type": "command", "command": "npx -y {plugin}@latest run --app claude" }] }
+    },
     "discovery": { "topic": "claude-code-plugin" },
     "projects": { "historyFile": "history.jsonl" }
   }
