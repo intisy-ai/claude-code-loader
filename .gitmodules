@@ -12,3 +12,7 @@
 	path = plugin-host
 	url = https://github.com/intisy-ai/plugin-host.git
 	branch = experimental
+[submodule "core-auth"]
+	path = core-auth
+	url = https://github.com/intisy-ai/core-auth.git
+	branch = experimental

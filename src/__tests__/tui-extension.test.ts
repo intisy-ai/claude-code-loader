@@ -107,3 +107,21 @@ test("the extension registers the capability vocabulary from the library that mi
   expect(registered.wellKnownServices.map((entry) => entry.id).sort())
     .toEqual(["accounts", "activity", "routing"]);
 });
+
+// A provider asks its context for this and never imports core-auth, so a loader that stopped
+// registering it would leave every provider unable to provide the capability it declared.
+test("the extension offers core-auth's provider helpers as a host service", async () => {
+  const registered = {};
+  const tuiApi = {
+    registerTab: () => {},
+    registerCapabilities: (caps) => Object.assign(registered, caps),
+  };
+
+  await tuiExtension(tuiApi);
+
+  const support = registered.services.find((service) => service.id === "provider-support");
+  expect(support).toBeDefined();
+  const capability = support.implementation.capability({ id: "stub", label: "Stub", models: {}, handleIr: async () => ({}) });
+  expect(capability.id).toBe("stub");
+  expect(typeof support.implementation.printAccounts).toBe("function");
+});
