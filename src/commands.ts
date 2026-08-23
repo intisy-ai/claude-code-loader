@@ -25,7 +25,9 @@ function configTargets(configDir) {
     const manifests = readDeployedManifests(pluginDir).loaded.map((entry) => entry.manifest);
     return applyManifestDeclarations(manifests, configDir)
       .filter((applied) => applied.settings.length > 0)
-      .map((applied) => applied.plugin);
+      // The config NAME, not the plugin id: a plugin whose settings file predates its repository
+      // name is served under the file it actually reads.
+      .map((applied) => applied.configName);
   } catch {
     return [];
   }
