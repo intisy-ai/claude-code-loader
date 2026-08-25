@@ -66,7 +66,7 @@ The `cc` wrapper points `ANTHROPIC_BASE_URL` at the local proxy (`http://127.0.0
 
 ## Configuration
 
-Config file: `<configDir>/config/claude-code-loader.json` (edit via the loader or `/claude-code-loader-config set`).
+Config file: `<configDir>/config/claude-code-loader.json` (edit it directly, or through whatever settings surface the app offers).
 
 ```json
 {
