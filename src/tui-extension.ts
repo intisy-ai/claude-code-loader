@@ -15,7 +15,8 @@ import { loaderConfigDir, loaderReposDir } from "@intisy-ai/core-loader/dist/app
 import { extraProviderRows } from "@intisy-ai/core-loader/dist/provider-rows.js";
 import { getUpdater, setupPlugin } from "@intisy-ai/core-loader/dist/updater.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "@intisy-ai/claude-code-proxy";
-import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema, pluginByCapability, getConfigValue, setConfigValue } from "@intisy-ai/core";
+import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema, getConfigValue, setConfigValue } from "@intisy-ai/core";
+import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/core-auth";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -71,7 +72,7 @@ async function endpointsApi(engine) {
 function ownRows() {
   return extraProviderRows({
     reposDir: reposDir(),
-    pluginByCapability,
+    pluginByCapability: caps.pluginByCapability,
     getConfigValue,
     setConfigValue,
     // The plugin owns what an endpoint is, whether one would work, and how it becomes
@@ -498,6 +499,10 @@ export default async function (tuiApi) {
       uninstallForeignPlugin: caps.uninstallForeignPlugin,
       mcpServers: caps.mcpServers,
       addMcpServer: caps.addMcpServer,
+      // Behaviour a plugin may not link for itself: core-auth's provider helpers, which core-loader
+      // may not link either, being in the same layer. Linked once here rather than copied into every
+      // provider bundle.
+      services: [{ id: PROVIDER_SUPPORT, implementation: providerSupport() }],
       activity: {
         read: (query) => { try { return readActivity([configDir()], { limit: 200, ...(query || {}) }).records; } catch { return []; } },
         ...createActivitySeam("claude-code-loader"),

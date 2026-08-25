@@ -1,6 +1,6 @@
 {
   "name": "claude-code-loader",
-  "version": "1.11.1",
+  "version": "1.12.1",
   "description": "TUI launcher and cc shell command for Claude Code.",
   "main": "dist/plugin.js",
   "type": "module",
@@ -22,6 +22,8 @@
     "cairn.json",
     "icon.svg",
     "core-loader/dist/",
+    "core-loader/api/dist/",
+    "core-loader/api/package.json",
     "core/dist/",
     "claude-code-proxy/dist/",
     "claude-code-proxy/core-proxy/dist/",
@@ -30,7 +32,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "claudeHub": {
     "daemon": {
@@ -41,21 +43,22 @@
     }
   },
   "scripts": {
-    "build": "npm --prefix claude-code-proxy install && npm --prefix claude-code-proxy run build && npx tsc --project core-loader/tsconfig.json && npx esbuild core/src/index.ts --bundle --platform=node --format=esm --outfile=core/dist/index.js && npx tsc && node build.mjs",
+    "build": "npx tsc && node build.mjs",
     "postbuild": "node dist/plugin.js readme",
     "prepublishOnly": "npm run build",
     "test": "npm run build && vitest run"
   },
   "devDependencies": {
-    "esbuild": "^0.25.12",
     "@types/node": "^25.9.1",
-    "plugin-updater": "^1.0.21",
+    "esbuild": "^0.25.12",
     "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   },
   "dependencies": {
-    "@intisy-ai/core": "file:core",
-    "@intisy-ai/core-loader": "file:core-loader",
-    "@intisy-ai/claude-code-proxy": "file:claude-code-proxy"
+    "@intisy-ai/api": "^1.0.2",
+    "@intisy-ai/claude-code-proxy": "^2.0.0",
+    "@intisy-ai/core": "^2.0.0",
+    "@intisy-ai/core-auth": "^1.1.0",
+    "@intisy-ai/core-loader": "^2.5.0"
   }
 }

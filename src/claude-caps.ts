@@ -12,6 +12,8 @@ import { execFileSync } from "child_process";
 import { join } from "path";
 import { homedir } from "os";
 import { loaderConfigDir } from "@intisy-ai/core-loader/dist/app-home.js";
+import { readDeployedManifests } from "@intisy-ai/api/host";
+import { homePaths } from "@intisy-ai/core-loader/dist/home-paths.js";
 
 const APP_HOME = join(homedir(), ".claude");
 
@@ -130,6 +132,41 @@ export function parseMarketplacePlugins(marketplaceJsonObj, name) {
     description: (e && e.description) || "",
     source: name,
   }));
+}
+
+// Which deployed plugin provides a capability, given what a home's manifests declare. A capability
+// id is the only key: no plugin is named here, and an id this loader has never heard of answers
+// exactly like one it has.
+export function ownerOfCapability(manifests, capabilityId, urlFor) {
+  for (const manifest of manifests || []) {
+    const declared = (manifest && manifest.capabilities) || [];
+    if (declared.indexOf(capabilityId) === -1) continue;
+    return { id: manifest.id, url: urlFor ? urlFor(manifest.id) : undefined };
+  }
+  return null;
+}
+
+function urlFromPluginList(paths, id) {
+  try {
+    const listed = JSON.parse(readFileSync(join(paths.configFolder, "plugins.json"), "utf8"));
+    const entry = (listed || []).find((item) => item && item.name === id);
+    return entry && typeof entry.url === "string" ? entry.url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// The plugin that provides a capability in THIS home, read from the manifest sidecars deploy
+// writes beside each bundle. Never throws into the TUI: an unreadable home answers null, which
+// every caller already renders as "nothing offers this".
+export function pluginByCapability(capabilityId) {
+  try {
+    const paths = homePaths(loaderConfigDir(APP_HOME));
+    const manifests = readDeployedManifests(paths.pluginDir).loaded.map((entry) => entry.manifest);
+    return ownerOfCapability(manifests, capabilityId, (id) => urlFromPluginList(paths, id));
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
