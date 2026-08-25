@@ -49,16 +49,16 @@
     "test": "npm run build && vitest run"
   },
   "devDependencies": {
-    "esbuild": "^0.25.12",
     "@types/node": "^25.9.1",
+    "esbuild": "^0.25.12",
     "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   },
   "dependencies": {
+    "@intisy-ai/api": "^1.0.2",
+    "@intisy-ai/claude-code-proxy": "^1.1.0",
     "@intisy-ai/core": "^2.0.0",
     "@intisy-ai/core-auth": "^1.1.0",
-    "@intisy-ai/core-loader": "^2.0.1",
-    "@intisy-ai/claude-code-proxy": "^1.0.0",
-    "@intisy-ai/api": "^1.0.2"
+    "@intisy-ai/core-loader": "^2.0.1"
   }
 }
