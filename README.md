@@ -90,14 +90,6 @@ Config file: `<configDir>/config/claude-code-loader.json` (edit it directly, or 
 | `default_tab` | `"projects"` |
 | `providerRouting` | `true` |
 
-## Commands
-
-| Command | Description | Arguments |
-| --- | --- | --- |
-| `/claude-code-loader-config` | View/change loader config (`claude-code-loader.json`): `list`, `get <key>`, `set <key> <value>`. 100% of the config is reachable here. | `list | get <key> | set <key> <value>` |
-| `/plugins` | List the loader-managed plugins and their state (from `plugins.json`). |  |
-| `/accounts` | List signed-in accounts across all providers (from the core-auth store). |  |
-
 ## Dependencies
 
 - `core-loader`
