@@ -1,6 +1,6 @@
 {
   "name": "claude-code-loader",
-  "version": "1.12.2",
+  "version": "1.12.3",
   "description": "TUI launcher and cc shell command for Claude Code.",
   "main": "dist/plugin.js",
   "type": "module",
@@ -59,6 +59,6 @@
     "@intisy-ai/claude-code-proxy": "^2.0.0",
     "@intisy-ai/core": "^2.0.0",
     "@intisy-ai/core-auth": "^1.1.0",
-    "@intisy-ai/core-loader": "^2.5.0"
+    "@intisy-ai/core-loader": "^2.9.0"
   }
 }
