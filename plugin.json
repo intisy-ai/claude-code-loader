@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/@intisy-ai/api/schema/plugin.schema.json",
+  "id": "claude-code-loader",
+  "api": 1,
+  "publish": {
+    "generatedReadme": true
+  },
+  "repo": {
+    "role": "Claude Code loader",
+    "category": "app-loader",
+    "domains": [
+      "claude"
+    ],
+    "tech": [
+      "typescript"
+    ]
+  }
+}
