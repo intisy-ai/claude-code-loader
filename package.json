@@ -48,6 +48,7 @@
     "test": "npm run build && vitest run"
   },
   "devDependencies": {
+    "@intisy-ai/api": "^1.6.0",
     "@types/node": "^25.9.1",
     "esbuild": "^0.25.12",
     "typescript": "^6.0.3",

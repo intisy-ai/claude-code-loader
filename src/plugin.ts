@@ -1,16 +1,11 @@
 ﻿import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
-// @ts-ignore: generated bundle, no .d.ts
 import { maybeRunCli, deployLoaderCommands, loaderEntry } from "./commands.js";
 import { ensureNotifyDrainHook } from "@intisy-ai/core-loader/dist/notify.js";
-// @ts-ignore: generated bundle, no .d.ts
 import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-// @ts-ignore: generated bundle, no .d.ts
 import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines, subdirEnvCmdLines, subdirEnvShLines } from "@intisy-ai/core-loader/dist/wrapper.js";
 import { getAppDescriptor, getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "@intisy-ai/core";
-// @ts-ignore: generated bundle, no .d.ts
 import { ensureAppCli } from "@intisy-ai/core-loader/dist/ensure-app.js";
-// @ts-ignore: generated bundle, no .d.ts
 import { setActivitySeam, emitPluginActivated } from "@intisy-ai/core-loader/dist/activity-seam.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
