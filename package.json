@@ -1,6 +1,6 @@
 {
   "name": "claude-code-loader",
-  "version": "1.12.3",
+  "version": "1.13.0",
   "description": "TUI launcher and cc shell command for Claude Code.",
   "main": "dist/plugin.js",
   "type": "module",
@@ -19,7 +19,6 @@
   ],
   "files": [
     "dist/",
-    "cairn.json",
     "icon.svg",
     "core-loader/dist/",
     "core-loader/api/dist/",
@@ -46,19 +45,22 @@
     "build": "npx tsc && node build.mjs",
     "postbuild": "node dist/plugin.js readme",
     "prepublishOnly": "npm run build",
-    "test": "npm run build && vitest run"
+    "test": "npm run build && vitest run",
+    "docs": "typedoc"
   },
   "devDependencies": {
+    "@intisy-ai/api": "^1.6.0",
     "@types/node": "^25.9.1",
     "esbuild": "^0.25.12",
+    "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   },
   "dependencies": {
     "@intisy-ai/api": "^1.0.2",
     "@intisy-ai/claude-code-proxy": "^2.0.0",
-    "@intisy-ai/core": "^2.0.0",
-    "@intisy-ai/core-auth": "^1.1.0",
-    "@intisy-ai/core-loader": "^2.9.0"
+    "@intisy-ai/core": "^2.6.0",
+    "@intisy-ai/core-auth": "^2.0.0",
+    "@intisy-ai/core-loader": "^3.5.0"
   }
 }

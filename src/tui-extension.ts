@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Custom TUI tab (loaded via HUB_TUI_EXTENSION). Main view: the Claude tier
 // mapping + a selectable provider list. Enter a tier -> assign picker (all
 // providers, grouped). Enter a provider -> browse that provider's models.
@@ -8,6 +7,28 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
+import type { AccountMenuApi } from "@intisy-ai/core-loader/dist/account-menu.js";
+import type { CustomProviderEngine, CustomEndpointDraft } from "@intisy-ai/core-loader/dist/custom-provider.js";
+import type { CustomTabContext, CustomTabRenderContext, CustomTabUi } from "@intisy-ai/core-loader/dist/custom-tab.js";
+import type { TuiApi } from "@intisy-ai/core-loader/dist/tui.js";
+import type { ModelEntry } from "@intisy-ai/core-loader/dist/provider-catalog.js";
+import type { ActivityQuery } from "@intisy-ai/core";
+
+/** The endpoint API a deployed custom-provider plugin exposes, loaded from its own handler. */
+interface EndpointsApi {
+  /** The plugin's verdict on a draft endpoint, empty when it would work. */
+  validateEndpoint: (endpoint: CustomEndpointDraft) => string | Promise<string | undefined> | undefined;
+  /** Stores one endpoint in the plugin's own clone. */
+  upsertEndpoint: (endpoint: CustomEndpointDraft, cloneDir: string) => void;
+  /** Stores that endpoint's key. */
+  saveKey: (id: string, key: string) => void;
+}
+
+/** One row of the chain editor: the add row, one chain entry, or the clear row. */
+type ChainItem =
+  | { kind: "add" }
+  | { kind: "clear" }
+  | { kind: "entry"; e: { provider: string; model: string }; idx: number };
 import { homedir } from "os";
 import { createAccountMenu } from "@intisy-ai/core-loader/dist/account-menu.js";
 import { modelEntries, providerRows } from "@intisy-ai/core-loader/dist/provider-catalog.js";
@@ -15,7 +36,7 @@ import { loaderConfigDir, loaderReposDir } from "@intisy-ai/core-loader/dist/app
 import { extraProviderRows } from "@intisy-ai/core-loader/dist/provider-rows.js";
 import { getUpdater, setupPlugin } from "@intisy-ai/core-loader/dist/updater.js";
 import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "@intisy-ai/claude-code-proxy";
-import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema, getConfigValue, setConfigValue } from "@intisy-ai/core";
+import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema } from "@intisy-ai/core";
 import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/core-auth";
 import * as caps from "./claude-caps.js";
 
@@ -32,7 +53,7 @@ function slots() {
 
 // compact provenance tag for leaderboard scores ("score 50 · AA"); the full
 // source name renders in the list footer.
-function scoreTag(source) { return source ? "AA" : ""; }
+function scoreTag(source: string | undefined) { return source ? "AA" : ""; }
 
 function configDir() { return loaderConfigDir(APP_HOME); }
 function reposDir() { return loaderReposDir(APP_HOME); }
@@ -43,7 +64,7 @@ function readConfig() {
   return {};
 }
 
-function writeConfig(cfg) {
+function writeConfig(cfg: Record<string, unknown>) {
   try {
     const dir = join(configDir(), "config");
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -60,11 +81,11 @@ function allEntries() {
 // The view's own rows, from core-loader so every loader shows the same ones. Everything they
 // need that lives in core or in this loader is passed in.
 // The deployed plugin's endpoint API, loaded once.
-var endpointsApiCache = null;
-async function endpointsApi(engine) {
+var endpointsApiCache: EndpointsApi | null = null;
+async function endpointsApi(engine: CustomProviderEngine): Promise<EndpointsApi> {
   if (!endpointsApiCache) {
     var handler = join(reposDir(), engine.id, "dist", "handler.js");
-    endpointsApiCache = await import(pathToFileURL(handler).href);
+    endpointsApiCache = (await import(pathToFileURL(handler).href)) as EndpointsApi;
   }
   return endpointsApiCache;
 }
@@ -73,8 +94,6 @@ function ownRows() {
   return extraProviderRows({
     reposDir: reposDir(),
     pluginByCapability: caps.pluginByCapability,
-    getConfigValue,
-    setConfigValue,
     // The plugin owns what an endpoint is, whether one would work, and how it becomes
     // routable, so it is asked for all three rather than any of it living here.
     validate: async function (engine, endpoint) {
@@ -83,7 +102,7 @@ function ownRows() {
     addEndpoint: async function (engine, endpoint, key) {
       var api = await endpointsApi(engine);
       api.upsertEndpoint(endpoint, join(reposDir(), engine.id));
-      if (key) api.saveKey(endpoint.id, key);
+      if (key && endpoint.id) api.saveKey(endpoint.id, key);
     },
     hasManager: () => !!getUpdater(),
     openAction: (action, tuiApi, title) => menu.openAction(action, tuiApi, title),
@@ -98,11 +117,17 @@ function ownRows() {
   });
 }
 
-export function uniqueProviders() {
+/** Every provider deployed here, deduplicated, in the order they were discovered. */
+export function uniqueProviders(): Array<{
+  /** The provider's name. */
+  name: string;
+  /** How many models it serves. */
+  count: number;
+}> {
   return providerRows(reposDir(), configDir()).map((row) => ({ name: row.id, count: row.count }));
 }
 
-function resolveHandlerPath(providerName) {
+function resolveHandlerPath(providerName: string): string | null {
   const row = providerRows(reposDir(), configDir()).find((r) => r.id === providerName);
   return row ? row.handler : null;
 }
@@ -110,13 +135,14 @@ function resolveHandlerPath(providerName) {
 // open the provider's account/quota menu natively in-tab (shared with the
 // OpenCode loader via core-loader's account-menu): accounts, login, and the
 // combined/per-account quota all render inside the loader chrome.
-function openAccounts(providerName, tuiApi) {
-  menu.open(resolveHandlerPath(providerName), tuiApi, providerName);
+function openAccounts(providerName: string, tuiApi: AccountMenuApi) {
+  const handler = resolveHandlerPath(providerName);
+  if (handler) menu.open(handler, tuiApi, providerName);
 }
 
-function groupByProvider(entries) {
-  const groups = [];
-  const by = {};
+function groupByProvider(entries: ModelEntry[]) {
+  const groups: Array<{ provider: string; items: ModelEntry[] }> = [];
+  const by: Record<string, { provider: string; items: ModelEntry[] }> = {};
   for (const e of entries) {
     if (!by[e.provider]) { by[e.provider] = { provider: e.provider, items: [] }; groups.push(by[e.provider]); }
     by[e.provider].items.push(e);
@@ -126,7 +152,7 @@ function groupByProvider(entries) {
 
 // favorites pinned on top AND kept in their provider category (listed twice);
 // while searching the favorites section is dropped.
-function buildList(entries) {
+function buildList(entries: ModelEntry[]) {
   const favSet = new Set(readConfig().favorites || []);
   const q = tab.search.toLowerCase();
   const filtered = entries.filter((e) => (e.model + " " + e.name).toLowerCase().indexOf(q) >= 0);
@@ -145,12 +171,12 @@ const menu = createAccountMenu();
 // mapping's primary, else the tier's native model), so e.g. a haiku-less provider
 // still gets a comparable-quality assignment. Default follows the top tier's pick
 // (never a raw catalog head, which surprised as ANTHROPIC_MODEL).
-function mapAllTiers(providerName, tuiApi) {
+function mapAllTiers(providerName: string, tuiApi: AccountMenuApi) {
   const all = allEntries().filter((e) => !/-auto$/.test(e.model));
   const entries = all.filter((e) => e.provider === providerName);
   if (!entries.length) { try { if (tuiApi.flash) tuiApi.flash("No models in " + providerName + " — log in / refresh first"); } catch {} return; }
   const currentMap = resolveModelMap(configDir(), profile);
-  const scoreOf = (provider, model) => { const m = all.find((e) => e.provider === provider && e.model === model); return m && typeof m.score === "number" ? m.score : undefined; };
+  const scoreOf = (provider: string, model: string) => { const m = all.find((e) => e.provider === provider && e.model === model); return m && typeof m.score === "number" ? m.score : undefined; };
   const mapped = [];
   let firstPick = null;
   for (const slot of slots()) {
@@ -162,7 +188,7 @@ function mapAllTiers(providerName, tuiApi) {
         ?? (all.find((e) => e.model.toLowerCase().indexOf(slot.key) >= 0 && typeof e.score === "number") || {}).score;
       const scored = entries.filter((e) => typeof e.score === "number");
       if (typeof ref === "number" && scored.length) {
-        pick = scored.reduce((best, e) => (Math.abs(e.score - ref) < Math.abs(best.score - ref) ? e : best));
+        pick = scored.reduce((best, e) => (Math.abs((e.score ?? 0) - ref) < Math.abs((best.score ?? 0) - ref) ? e : best));
       } else {
         pick = entries[0];
       }
@@ -178,7 +204,7 @@ function mapAllTiers(providerName, tuiApi) {
 
 // Wipe the stored mapping: every tier reverts to auto-derivation (the app's own
 // models first), shown as "(auto)" in the overview.
-function resetMapping(tuiApi) {
+function resetMapping(tuiApi: AccountMenuApi) {
   const cfg = readConfig();
   delete cfg.modelMap;
   writeConfig(cfg);
@@ -186,10 +212,10 @@ function resetMapping(tuiApi) {
 }
 
 // the raw stored fallback chain for a tier (ordered [{provider,model}, ...])
-function storedChain(slot) {
+function storedChain(slot: string): Array<{ provider: string; model: string }> {
   return normalizeChain((readConfig().modelMap || {})[slot]);
 }
-function writeChain(slot, chain) {
+function writeChain(slot: string, chain: Array<{ provider: string; model: string }>) {
   const cfg = readConfig();
   cfg.modelMap = cfg.modelMap || {};
   if (chain.length) cfg.modelMap[slot] = chain; else delete cfg.modelMap[slot];
@@ -198,7 +224,7 @@ function writeChain(slot, chain) {
 
 // model row + category header share the same left inset (text at column 4); the
 // selection ">" sits in the gutter to the left so text never shifts.
-function modelRow(h, e, sel) {
+function modelRow(h: CustomTabUi, e: ModelEntry, sel: boolean) {
   const gutter = sel ? (h.ACCENT + "❯ " + h.RST) : "  ";
   const body = sel ? (h.BG_SEL + h.BOLD + h.WHITE) : h.GRAY;
   // trailing leaderboard quality score + its source tag (full source in the footer)
@@ -206,25 +232,25 @@ function modelRow(h, e, sel) {
   const score = typeof e.score === "number" ? h.DIM + "  · score " + Math.round(e.score) + (tag ? " · " + tag : "") + h.RST : "";
   h.pushBody("  " + gutter + body + e.model + h.RST + h.GRAY + "  " + e.name + h.RST + score, sel);
 }
-function catHeader(h, label, first) {
+function catHeader(h: CustomTabUi, label: string, first: boolean) {
   if (!first) h.pushBody("", false);          // newline between categories
   // bold + a distinct colour: bold alone is invisible on bright-black (GRAY)
   h.pushBody("    " + h.BOLD + h.ACCENT + label + h.RST, false);
 }
 
-function renderList(h, title, built) {
+function renderList(h: CustomTabUi, title: string, built: ReturnType<typeof buildList>) {
   const { favs, groups, selectable } = built;
   h.pushBody("  " + h.BOLD + h.WHITE + "" + title + " " + h.RST +
     h.BG_SEL + " Search: " + tab.search + "_ " + h.RST, false);
   if (selectable.length === 0) h.pushBody("  " + h.GRAY + "No matching models." + h.RST, false);
   let i = 0;
   let first = true;
-  const rows = (items) => items.forEach((e) => { modelRow(h, e, i === tab.pickCursor); i++; });
+  const rows = (items: ModelEntry[]) => items.forEach((e: ModelEntry) => { modelRow(h, e, i === tab.pickCursor); i++; });
   if (favs.length) { catHeader(h, "Favorites", first); first = false; rows(favs); }
   for (const g of groups) { catHeader(h, g.provider, first); first = false; rows(g.items); }
   h.pushBody("", false);
   h.pushFoot("  " + h.GRAY + "─".repeat(h.barW) + h.RST);
-  const src = (selectable.find((e) => e.scoreSource) || {}).scoreSource;
+  const src = (selectable.find((e: ModelEntry) => e.scoreSource) || {}).scoreSource;
   if (src) h.pushFoot("  " + h.DIM + "Scores: " + src + h.RST);
   h.pushFoot("  " + h.DIM + "Type to filter   ^v Move   " + (tab.mode === "pick" ? "Enter Select   " : "") + "Tab Favorite   Esc Back" + h.RST);
 }
@@ -234,7 +260,7 @@ function routingLabel() {
   return "Routing: " + (providerRouting ? "[Provider setup]" : "[Claude account]") + "  (r to toggle)";
 }
 
-function renderSlots(h) {
+function renderSlots(h: CustomTabUi) {
   // Effective (healed) mapping: a stale/unset tier auto-derives to the current catalog
   // and is marked "(auto)"; a still-valid explicit choice is shown as-is.
   const SLOTS = slots();
@@ -278,15 +304,15 @@ function renderSlots(h) {
 }
 
 // items shown in the chain editor: [Add model], each chain entry, then [Clear chain].
-function chainItems(slot) {
+function chainItems(slot: string): ChainItem[] {
   const chain = storedChain(slot);
-  const items = [{ kind: "add" }];
-  chain.forEach((e, idx) => items.push({ kind: "entry", e, idx }));
+  const items: ChainItem[] = [{ kind: "add" }];
+  chain.forEach((e: { provider: string; model: string }, idx: number) => items.push({ kind: "entry", e, idx }));
   if (chain.length) items.push({ kind: "clear" });
   return items;
 }
 
-function renderChain(h) {
+function renderChain(h: CustomTabUi) {
   const slot = slots().find((s) => s.key === tab.editingSlot) || { label: tab.editingSlot, key: tab.editingSlot };
   const items = chainItems(slot.key);
   if (tab.chainCursor >= items.length) tab.chainCursor = items.length - 1;
@@ -295,7 +321,7 @@ function renderChain(h) {
   h.pushBody("  " + h.DIM + "Tried top-to-bottom; only advances to the next when one is rate-limited." + h.RST, false);
   h.pushBody("", false);
   // provider/model -> leaderboard score (+ source tag), like the picker
-  const scoreByKey = {};
+  const scoreByKey: Record<string, number> = {};
   let chainScoreSource = "";
   for (const e of allEntries()) {
     if (typeof e.score === "number") scoreByKey[e.provider + "/" + e.model] = e.score;
@@ -328,7 +354,7 @@ function renderChain(h) {
 }
 
 // provider picker for "Map all tiers" + the reset-to-defaults entry
-function renderMapAll(h) {
+function renderMapAll(h: CustomTabUi) {
   const provs = uniqueProviders();
   h.pushBody("  " + h.BOLD + h.WHITE + "Map all tiers to one provider" + h.RST, false);
   h.pushBody("  " + h.DIM + "Each tier gets the provider's matching model; tiers without a match get the closest-scoring model." + h.RST, false);
@@ -347,7 +373,7 @@ function renderMapAll(h) {
   h.pushFoot("  " + h.DIM + "^v Move   Enter Apply   Esc Back" + h.RST);
 }
 
-function render(state, h) {
+function render(state: CustomTabRenderContext, h: CustomTabUi): void {
   if (menu.render(h)) return;   // in-tab account/quota menu owns the tab while open
   if (tab.mode === "pick") { const slot = slots().find((s) => s.key === tab.editingSlot); renderList(h, "Add to " + (slot ? slot.label : "") + " chain", buildList(allEntries())); }
   else if (tab.mode === "mapall") renderMapAll(h);
@@ -361,7 +387,7 @@ function currentList() {
   return buildList(allEntries().filter((e) => e.provider === tab.editingProvider));
 }
 
-function handleKey(key, state, tuiApi) {
+function handleKey(key: string | null, state: CustomTabContext, tuiApi: TuiApi): void {
   if (menu.handleKey(key, tuiApi)) return;   // account/quota menu consumes keys while open
   if (tab.mode === "slots") {
     const SLOTS = slots();
@@ -476,7 +502,8 @@ function handleKey(key, state, tuiApi) {
   if (typeof key === "string" && key.length === 1) { tab.search += key; tab.pickCursor = 0; }
 }
 
-export default async function (tuiApi) {
+/** Registers this loader's Providers tab and everything this app can do, at TUI startup. */
+export default async function (tuiApi: TuiApi): Promise<void> {
   // This tab runs in the TUI's own process (spawned separately from the plugin's
   // activate()), so it must init core-proxy's eager-loaded TeaVM module itself,
   // before the render/handleKey below make their first sync routing-decision call.
@@ -504,7 +531,7 @@ export default async function (tuiApi) {
       // provider bundle.
       services: [{ id: PROVIDER_SUPPORT, implementation: providerSupport() }],
       activity: {
-        read: (query) => { try { return readActivity([configDir()], { limit: 200, ...(query || {}) }).records; } catch { return []; } },
+        read: (query?: ActivityQuery) => { try { return readActivity([configDir()], { limit: 200, ...(query || {}) }).records; } catch { return []; } },
         ...createActivitySeam("claude-code-loader"),
       },
       // core owns the shared settings declaration; the menu renders whatever it says

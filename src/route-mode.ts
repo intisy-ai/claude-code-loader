@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 // Tiny stdout helper the cc wrapper invokes at launch to decide routing mode:
 // PROVIDER routing (proxy + provider accounts, the current/default behavior)
 // vs NATIVE Claude account (no proxy, plain `claude` with its own login).
