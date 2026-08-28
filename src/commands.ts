@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Cross-app slash-commands for claude-code-loader. The shared engine lives in
 // core-loader (makeLoaderCommands); this only wires the app-specific bits: the
 // Claude command dir, the loader's runtime entry, and the `cc auth` hint.
@@ -9,7 +8,7 @@ import { readDeployedManifests } from "@intisy-ai/api/host";
 import { makeLoaderCommands } from "@intisy-ai/core-loader/dist/loader-commands.js";
 import { busDrain } from "./notify-drain.js";
 
-function loaderEntry(configDir) {
+function loaderEntry(configDir: string): string {
   const candidates = [
     join(configDir, "repos", "claude-code-loader", "dist", "plugin.js"),
   ];
@@ -19,7 +18,7 @@ function loaderEntry(configDir) {
 // Registers what every installed plugin declares, and answers with the ones that ship settings.
 // A plugin declares what its settings ARE; serving them is this loader's job, so nothing is spawned
 // and a plugin that cannot even be built still has editable settings.
-function configTargets(configDir) {
+function configTargets(configDir: string): string[] {
   try {
     const pluginDir = appPaths(configDir, getAppDescriptor("claude") ?? null).plugin;
     const manifests = readDeployedManifests(pluginDir).loaded.map((entry) => entry.manifest);

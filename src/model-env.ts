@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 // Tiny stdout helper the cc wrapper invokes at launch: prints the ANTHROPIC_DEFAULT_*
 // model env, derived from the loader's (healed) tier->model mapping, so Claude Code's
 // /model picker shows the mapped provider models. JSON/mapping logic stays in
