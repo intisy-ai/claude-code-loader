@@ -117,7 +117,13 @@ function ownRows() {
   });
 }
 
-export function uniqueProviders() {
+/** Every provider deployed here, deduplicated, in the order they were discovered. */
+export function uniqueProviders(): Array<{
+  /** The provider's name. */
+  name: string;
+  /** How many models it serves. */
+  count: number;
+}> {
   return providerRows(reposDir(), configDir()).map((row) => ({ name: row.id, count: row.count }));
 }
 
@@ -496,6 +502,7 @@ function handleKey(key: string | null, state: CustomTabContext, tuiApi: TuiApi):
   if (typeof key === "string" && key.length === 1) { tab.search += key; tab.pickCursor = 0; }
 }
 
+/** Registers this loader's Providers tab and everything this app can do, at TUI startup. */
 export default async function (tuiApi: TuiApi): Promise<void> {
   // This tab runs in the TUI's own process (spawned separately from the plugin's
   // activate()), so it must init core-proxy's eager-loaded TeaVM module itself,

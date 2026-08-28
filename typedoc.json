@@ -1,0 +1,53 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "out": "site",
+  "excludePrivate": true,
+  "treatWarningsAsErrors": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": true
+  },
+  "highlightLanguages": [
+    "bash",
+    "java",
+    "js",
+    "json",
+    "jsonc",
+    "ts",
+    "typescript"
+  ],
+  "ignoredHighlightLanguages": [
+    "mermaid"
+  ],
+  "tsconfig": "./tsconfig.json",
+  "externalSymbolLinkMappings": {
+    "@intisy-ai/core": {
+      "*": "https://github.com/intisy-ai/core"
+    },
+    "@intisy-ai/core-loader": {
+      "*": "https://github.com/intisy-ai/core-loader"
+    },
+    "@intisy-ai/core-auth": {
+      "*": "https://github.com/intisy-ai/core-auth"
+    }
+  },
+  "entryPoints": [
+    "src/plugin.ts",
+    "src/commands.ts",
+    "src/claude-caps.ts",
+    "src/tui-extension.ts",
+    "src/notify-drain.ts"
+  ],
+  "name": "claude-code-loader",
+  "sourceLinkTemplate": "https://github.com/intisy-ai/claude-code-loader/blob/{gitRevision}/{path}#L{line}",
+  "intentionallyNotExported": [
+    "AppSettings",
+    "CapabilityOwner",
+    "HistoryEntry",
+    "InstalledPlugins",
+    "KnownMarketplace",
+    "ManifestLike",
+    "MarketplaceManifest"
+  ]
+}

@@ -100,10 +100,12 @@ const APP_HOME = join(homedir(), ".claude");
 // Pure helpers (no fs access), unit-tested in src/__tests__/claude-caps.test.ts
 // ---------------------------------------------------------------------------
 
-// Group history.jsonl entries belonging to `dir` by sessionId. title is the
-// display text of the earliest-timestamped entry in the group (the session's
-// first prompt); AI-title enrichment happens in the listSessions() I/O
-// wrapper, which overwrites title when a transcript ai-title is found.
+/**
+ * Group history.jsonl entries belonging to `dir` by sessionId. title is the
+ * display text of the earliest-timestamped entry in the group (the session's
+ * first prompt); AI-title enrichment happens in the listSessions() I/O
+ * wrapper, which overwrites title when a transcript ai-title is found.
+ */
 export function groupSessions(historyEntries: HistoryEntry[] | null | undefined, dir: string): SessionEntry[] {
   const groups: Record<string, SessionGroup> = {};
   const order: string[] = [];
@@ -128,8 +130,10 @@ export function groupSessions(historyEntries: HistoryEntry[] | null | undefined,
   return out;
 }
 
-// Last `{"type":"ai-title","aiTitle":...}` line in a transcript's raw text, or
-// null when none is present. Malformed/non-JSON lines are skipped.
+/**
+ * Last `{"type":"ai-title","aiTitle":...}` line in a transcript's raw text, or
+ * null when none is present. Malformed/non-JSON lines are skipped.
+ */
 export function pickAiTitle(transcriptText: string | null | undefined): string | null {
   if (!transcriptText) return null;
   const lines = String(transcriptText).split("\n");
@@ -144,8 +148,10 @@ export function pickAiTitle(transcriptText: string | null | undefined): string |
   return last;
 }
 
-// settings.json's enabledPlugins = {"name@marketplace": bool}; version is
-// looked up in plugins/installed_plugins.json's {plugins:{"name@marketplace":[{version}]}}.
+/**
+ * settings.json's enabledPlugins = {"name@marketplace": bool}; version is
+ * looked up in plugins/installed_plugins.json's {plugins:{"name@marketplace":[{version}]}}.
+ */
 export function parseEnabledPlugins(settingsObj: AppSettings | null | undefined, installedObj: InstalledPlugins | null | undefined): ForeignPlugin[] {
   const out: ForeignPlugin[] = [];
   const enabled = (settingsObj && settingsObj.enabledPlugins) || {};
@@ -172,9 +178,16 @@ function marketplaceSource(entry: KnownMarketplace | null | undefined): string {
   return src.repo || src.url || JSON.stringify(src);
 }
 
-// Merge known_marketplaces.json + settings.json's extraKnownMarketplaces
-// (same shape), deduped by name (known wins on collision).
-export function parseMarketplaces(knownObj: Record<string, KnownMarketplace> | null | undefined, extraObj: Record<string, KnownMarketplace> | null | undefined): Array<{ name: string; source: string }> {
+/**
+ * Merge known_marketplaces.json + settings.json's extraKnownMarketplaces
+ * (same shape), deduped by name (known wins on collision).
+ */
+export function parseMarketplaces(knownObj: Record<string, KnownMarketplace> | null | undefined, extraObj: Record<string, KnownMarketplace> | null | undefined): Array<{
+  /** The marketplace's name. */
+  name: string;
+  /** Where it came from. */
+  source: string;
+}> {
   const out: Array<{ name: string; source: string }> = [];
   const seen: Record<string, boolean> = {};
   const addAll = (obj: Record<string, KnownMarketplace> | null | undefined) => {
@@ -190,18 +203,22 @@ export function parseMarketplaces(knownObj: Record<string, KnownMarketplace> | n
   return out;
 }
 
-// A marketplace's cloned .claude-plugin/marketplace.json -> its plugin count.
-// 0 for any missing/malformed input (unreadable clone, no plugins array, etc).
+/**
+ * A marketplace's cloned .claude-plugin/marketplace.json -> its plugin count.
+ * 0 for any missing/malformed input (unreadable clone, no plugins array, etc).
+ */
 export function countPlugins(marketplaceJsonObj: MarketplaceManifest | null | undefined): number {
   const plugins = marketplaceJsonObj && marketplaceJsonObj.plugins;
   return Array.isArray(plugins) ? plugins.length : 0;
 }
 
-// A marketplace's cloned .claude-plugin/marketplace.json -> its plugin list,
-// tagged with the marketplace name as `source` (drill-in display shape).
-// Entries are parsed defensively: real marketplace.json plugin entries carry
-// at least `name`, usually `description`/`source`/`version`/etc (see
-// ecc's .claude-plugin/marketplace.json for the reference shape).
+/**
+ * A marketplace's cloned .claude-plugin/marketplace.json -> its plugin list,
+ * tagged with the marketplace name as `source` (drill-in display shape).
+ * Entries are parsed defensively: real marketplace.json plugin entries carry
+ * at least `name`, usually `description`/`source`/`version`/etc (see
+ * ecc's .claude-plugin/marketplace.json for the reference shape).
+ */
 export function parseMarketplacePlugins(marketplaceJsonObj: MarketplaceManifest | null | undefined, name: string): CapabilityMarketplacePlugin[] {
   const plugins = marketplaceJsonObj && marketplaceJsonObj.plugins;
   if (!Array.isArray(plugins)) return [];
@@ -213,9 +230,11 @@ export function parseMarketplacePlugins(marketplaceJsonObj: MarketplaceManifest 
   }));
 }
 
-// Which deployed plugin provides a capability, given what a home's manifests declare. A capability
-// id is the only key: no plugin is named here, and an id this loader has never heard of answers
-// exactly like one it has.
+/**
+ * Which deployed plugin provides a capability, given what a home's manifests declare. A capability
+ * id is the only key: no plugin is named here, and an id this loader has never heard of answers
+ * exactly like one it has.
+ */
 export function ownerOfCapability(manifests: ManifestLike[] | null | undefined, capabilityId: string, urlFor?: (id: string) => string | undefined): CapabilityOwner | null {
   for (const manifest of manifests || []) {
     const declared = (manifest && manifest.capabilities) || [];
@@ -235,9 +254,11 @@ function urlFromPluginList(paths: HomePaths, id: string): string | undefined {
   }
 }
 
-// The plugin that provides a capability in THIS home, read from the manifest sidecars deploy
-// writes beside each bundle. Never throws into the TUI: an unreadable home answers null, which
-// every caller already renders as "nothing offers this".
+/**
+ * The plugin that provides a capability in THIS home, read from the manifest sidecars deploy
+ * writes beside each bundle. Never throws into the TUI: an unreadable home answers null, which
+ * every caller already renders as "nothing offers this".
+ */
 export function pluginByCapability(capabilityId: string): CapabilityOwner | null {
   try {
     const paths = homePaths(loaderConfigDir(APP_HOME));
@@ -288,6 +309,7 @@ function findTranscriptPath(sessionId: string): string | null {
   return null;
 }
 
+/** The earlier sessions of one project directory, titled by their first prompt or by a later ai-title. */
 export function listSessions(dir: string): SessionEntry[] {
   try {
     const histPath = join(configDir(), "history.jsonl");
@@ -313,6 +335,7 @@ export function listSessions(dir: string): SessionEntry[] {
   } catch (e) { return []; }
 }
 
+/** The plugins this app manages itself, with the version its own record holds. */
 export function foreignPlugins(): ForeignPlugin[] {
   try {
     const settings = readJsonSafe<AppSettings>(join(configDir(), "settings.json")) || {};
@@ -343,6 +366,7 @@ function readMarketplaceJson(entry: KnownMarketplace | null | undefined): Market
   return readJsonSafe<MarketplaceManifest>(join(loc, ".claude-plugin", "marketplace.json"));
 }
 
+/** The marketplaces this app knows about, each with how many plugins its clone offers. */
 export function marketplaces(): CapabilityMarketplace[] {
   try {
     const { known, extra, entries } = marketplaceEntries();
@@ -354,6 +378,7 @@ export function marketplaces(): CapabilityMarketplace[] {
   } catch (e) { return []; }
 }
 
+/** The plugins one of those marketplaces offers. */
 export function marketplacePlugins(name: string): CapabilityMarketplacePlugin[] {
   try {
     const { entries } = marketplaceEntries();
@@ -361,8 +386,10 @@ export function marketplacePlugins(name: string): CapabilityMarketplacePlugin[] 
   } catch (e) { return []; }
 }
 
-// Enable/disable an installed foreign plugin (key = "name@marketplace") via
-// the CLI so `claude`'s own state stays authoritative.
+/**
+ * Enable/disable an installed foreign plugin (key = "name@marketplace") via
+ * the CLI so `claude`'s own state stays authoritative.
+ */
 export function setForeignPluginEnabled(key: string, enabled: boolean): CapabilityResult {
   try {
     execFileSync("claude", ["plugin", enabled ? "enable" : "disable", key], { stdio: "pipe" });
@@ -370,6 +397,7 @@ export function setForeignPluginEnabled(key: string, enabled: boolean): Capabili
   } catch (e) { return { ok: false, error: String(e instanceof Error ? e.message : e) }; }
 }
 
+/** Removes one host-managed plugin through the app's own CLI, so its state stays authoritative. */
 export function uninstallForeignPlugin(key: string): CapabilityResult {
   try {
     execFileSync("claude", ["plugin", "uninstall", key], { stdio: "pipe" });
@@ -377,8 +405,10 @@ export function uninstallForeignPlugin(key: string): CapabilityResult {
   } catch (e) { return { ok: false, error: String(e instanceof Error ? e.message : e) }; }
 }
 
-// The supported way to register a marketplace so a running `claude` picks it
-// up (writes go through the CLI, not a hand-rolled JSON edit).
+/**
+ * The supported way to register a marketplace so a running `claude` picks it
+ * up (writes go through the CLI, not a hand-rolled JSON edit).
+ */
 export function addMarketplace(input: string): CapabilityResult {
   try {
     execFileSync("claude", ["plugin", "marketplace", "add", input], { stdio: "pipe" });
@@ -386,9 +416,11 @@ export function addMarketplace(input: string): CapabilityResult {
   } catch (e) { return { ok: false, error: String(e instanceof Error ? e.message : e) }; }
 }
 
-// Install a plugin browsed via a capability-registered marketplace (a Level-2
-// row from marketplacePlugins()). `pluginId` is the plugin's name within that
-// marketplace; `marketplace` is the marketplace name it was drilled into from.
+/**
+ * Install a plugin browsed via a capability-registered marketplace (a Level-2
+ * row from marketplacePlugins()). `pluginId` is the plugin's name within that
+ * marketplace; `marketplace` is the marketplace name it was drilled into from.
+ */
 export function installAppPlugin(pluginId: string, marketplace: string): CapabilityResult {
   try {
     execFileSync("claude", ["plugin", "install", pluginId + "@" + marketplace], { stdio: "pipe" });
@@ -396,6 +428,7 @@ export function installAppPlugin(pluginId: string, marketplace: string): Capabil
   } catch (e) { return { ok: false, error: String(e instanceof Error ? e.message : e) }; }
 }
 
+/** The MCP servers this app has configured. */
 export function mcpServers(): CapabilityMcpServer[] {
   try {
     const cfg = readJsonSafe<{ mcpServers?: Record<string, { type?: string; command?: string; url?: string }> }>(join(homedir(), ".claude.json")) || {};
@@ -409,6 +442,7 @@ export function mcpServers(): CapabilityMcpServer[] {
   } catch (e) { return []; }
 }
 
+/** Adds one, through the app's own CLI rather than by editing its config file. */
 export function addMcpServer(spec: McpServerDraft | null): CapabilityResult {
   try {
     const name = spec && spec.name;

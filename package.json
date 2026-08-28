@@ -45,12 +45,14 @@
     "build": "npx tsc && node build.mjs",
     "postbuild": "node dist/plugin.js readme",
     "prepublishOnly": "npm run build",
-    "test": "npm run build && vitest run"
+    "test": "npm run build && vitest run",
+    "docs": "typedoc"
   },
   "devDependencies": {
     "@intisy-ai/api": "^1.6.0",
     "@types/node": "^25.9.1",
     "esbuild": "^0.25.12",
+    "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   },

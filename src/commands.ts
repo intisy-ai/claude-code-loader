@@ -8,6 +8,12 @@ import { readDeployedManifests } from "@intisy-ai/api/host";
 import { makeLoaderCommands } from "@intisy-ai/core-loader/dist/loader-commands.js";
 import { busDrain } from "./notify-drain.js";
 
+/**
+ * Where this loader's runtime entry lives in one home.
+ *
+ * @param configDir the home to look in.
+ * @returns the first candidate that exists, or the first candidate when none does.
+ */
 function loaderEntry(configDir: string): string {
   const candidates = [
     join(configDir, "repos", "claude-code-loader", "dist", "plugin.js"),
@@ -43,6 +49,8 @@ const commands = makeLoaderCommands({
   busDrain,
 });
 
+/** Writes this loader's slash-command files into the app's command directory. */
 export const deployLoaderCommands = commands.deployLoaderCommands;
+/** Answers one of those commands, saying whether the invocation was one of them. */
 export const maybeRunCli = commands.maybeRunCli;
 export { loaderEntry };

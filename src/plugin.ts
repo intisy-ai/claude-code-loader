@@ -333,6 +333,7 @@ function installCcWrapper(configDir: string) {
   writeLog(configDir, "Wrapper installed successfully");
 }
 
+/** Removes what this loader installed into a home: its wrapper, its commands and its hooks. */
 export async function cleanup(configDir?: string) {
   // opencode invokes every exported function as a plugin hook, passing a context
   // object; return an inert plugin instance in that case.
@@ -347,6 +348,7 @@ export async function cleanup(configDir?: string) {
   return {};
 }
 
+/** The app's own load hook: wires activity, deploys the commands and the wrapper, and runs the update pass. */
 export async function activate() {
   const configDir = getAppConfigDir();
   try {
