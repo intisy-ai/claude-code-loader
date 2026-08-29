@@ -4,7 +4,7 @@
 import { join } from "path";
 import { existsSync } from "fs";
 import { runConfigCli, runAllConfigCli, applyManifestDeclarations, appPaths, getAppDescriptor } from "@intisy-ai/basekit";
-import { readDeployedManifests } from "@intisy-ai/api/host";
+import { readDeployedManifests } from "@intisy/bayonet/host";
 import { makeLoaderCommands } from "@intisy-ai/basekit/loader/loader-commands.js";
 import { busDrain } from "./notify-drain.js";
 

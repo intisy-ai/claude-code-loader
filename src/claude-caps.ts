@@ -11,7 +11,7 @@ import { execFileSync } from "child_process";
 import { join } from "path";
 import { homedir } from "os";
 import { loaderConfigDir } from "@intisy-ai/basekit/loader/app-home.js";
-import { readDeployedManifests } from "@intisy-ai/api/host";
+import { readDeployedManifests } from "@intisy/bayonet/host";
 import { homePaths } from "@intisy-ai/basekit/loader/home-paths.js";
 import type { HomePaths } from "@intisy-ai/basekit/loader/home-paths.js";
 import type {
