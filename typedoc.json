@@ -24,12 +24,6 @@
   "externalSymbolLinkMappings": {
     "@intisy-ai/basekit": {
       "*": "https://github.com/intisy-ai/basekit"
-    },
-    "@intisy-ai/core-loader": {
-      "*": "https://github.com/intisy-ai/basekit"
-    },
-    "@intisy-ai/basekit/auth": {
-      "*": "https://github.com/intisy-ai/basekit"
     }
   },
   "entryPoints": [
