@@ -3,7 +3,7 @@
 // `systemMessage` (shown to the USER, never added to the model's context). Queue
 // semantics: a persisted cursor means each notification surfaces exactly once, even
 // across the concurrent hook invocations a long turn produces.
-import { drain, TOPICS } from "@intisy-ai/core";
+import { drain, TOPICS } from "@intisy-ai/basekit";
 
 /**
  * Drains the shared event bus and shows every pending notification as one system message.

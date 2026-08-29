@@ -1,7 +1,7 @@
 // Universal plugin contract via core's shared test-kit. The loader is app-specific
 // (Claude only) and deploys its commands in activate() via deployLoaderCommands,
 // so the kit calls that export rather than a bare load.
-import { runPluginContract } from "@intisy-ai/core/testing";
+import { runPluginContract } from "@intisy-ai/basekit/testing";
 
 runPluginContract({
   name: "claude-code-loader",

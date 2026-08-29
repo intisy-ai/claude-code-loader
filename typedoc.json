@@ -22,14 +22,14 @@
   ],
   "tsconfig": "./tsconfig.json",
   "externalSymbolLinkMappings": {
-    "@intisy-ai/core": {
-      "*": "https://github.com/intisy-ai/core"
+    "@intisy-ai/basekit": {
+      "*": "https://github.com/intisy-ai/basekit"
     },
     "@intisy-ai/core-loader": {
-      "*": "https://github.com/intisy-ai/core-loader"
+      "*": "https://github.com/intisy-ai/basekit"
     },
-    "@intisy-ai/core-auth": {
-      "*": "https://github.com/intisy-ai/core-auth"
+    "@intisy-ai/basekit/auth": {
+      "*": "https://github.com/intisy-ai/basekit"
     }
   },
   "entryPoints": [

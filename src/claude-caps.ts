@@ -1,6 +1,6 @@
-// Claude adapter for core-loader's app-capability contract (see
-// libs/core-loader "S.capabilities" / tuiApi.registerCapabilities). Every
-// Claude-specific file path/shape lives here so core-loader stays generic.
+// Claude adapter for basekit/loader's app-capability contract (see
+// basekit's loader module ("S.capabilities" / tuiApi.registerCapabilities). Every
+// Claude-specific file path/shape lives here so the loader module stays generic.
 // Pure helpers (groupSessions/pickAiTitle/parseEnabledPlugins/parseMarketplaces)
 // are exported standalone and unit-tested with plain-object inputs; the I/O
 // wrappers below them read the real ~/.claude files and never throw into the
@@ -10,10 +10,10 @@ import { existsSync, readFileSync, readdirSync, statSync, openSync, readSync, cl
 import { execFileSync } from "child_process";
 import { join } from "path";
 import { homedir } from "os";
-import { loaderConfigDir } from "@intisy-ai/core-loader/dist/app-home.js";
+import { loaderConfigDir } from "@intisy-ai/basekit/loader/app-home.js";
 import { readDeployedManifests } from "@intisy-ai/api/host";
-import { homePaths } from "@intisy-ai/core-loader/dist/home-paths.js";
-import type { HomePaths } from "@intisy-ai/core-loader/dist/home-paths.js";
+import { homePaths } from "@intisy-ai/basekit/loader/home-paths.js";
+import type { HomePaths } from "@intisy-ai/basekit/loader/home-paths.js";
 import type {
   CapabilityMarketplace,
   CapabilityMarketplacePlugin,
@@ -22,7 +22,7 @@ import type {
   ForeignPlugin,
   McpServerDraft,
   SessionEntry,
-} from "@intisy-ai/core-loader/dist/app-capabilities.js";
+} from "@intisy-ai/basekit/loader/app-capabilities.js";
 
 /** One line of this app's own history file. */
 interface HistoryEntry {

@@ -7,12 +7,12 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
-import type { AccountMenuApi } from "@intisy-ai/core-loader/dist/account-menu.js";
-import type { CustomProviderEngine, CustomEndpointDraft } from "@intisy-ai/core-loader/dist/custom-provider.js";
-import type { CustomTabContext, CustomTabRenderContext, CustomTabUi } from "@intisy-ai/core-loader/dist/custom-tab.js";
-import type { TuiApi } from "@intisy-ai/core-loader/dist/tui.js";
-import type { ModelEntry } from "@intisy-ai/core-loader/dist/provider-catalog.js";
-import type { ActivityQuery } from "@intisy-ai/core";
+import type { AccountMenuApi } from "@intisy-ai/basekit/loader/account-menu.js";
+import type { CustomProviderEngine, CustomEndpointDraft } from "@intisy-ai/basekit/loader/custom-provider.js";
+import type { CustomTabContext, CustomTabRenderContext, CustomTabUi } from "@intisy-ai/basekit/loader/custom-tab.js";
+import type { TuiApi } from "@intisy-ai/basekit/loader/tui.js";
+import type { ModelEntry } from "@intisy-ai/basekit/loader/provider-catalog.js";
+import type { ActivityQuery } from "@intisy-ai/basekit";
 
 /** The endpoint API a deployed custom-provider plugin exposes, loaded from its own handler. */
 interface EndpointsApi {
@@ -30,14 +30,14 @@ type ChainItem =
   | { kind: "clear" }
   | { kind: "entry"; e: { provider: string; model: string }; idx: number };
 import { homedir } from "os";
-import { createAccountMenu } from "@intisy-ai/core-loader/dist/account-menu.js";
-import { modelEntries, providerRows } from "@intisy-ai/core-loader/dist/provider-catalog.js";
-import { loaderConfigDir, loaderReposDir } from "@intisy-ai/core-loader/dist/app-home.js";
-import { extraProviderRows } from "@intisy-ai/core-loader/dist/provider-rows.js";
-import { getUpdater, setupPlugin } from "@intisy-ai/core-loader/dist/updater.js";
-import { resolveModelMap, normalizeChain, claudeTiers, anthropicProfile, initCoreProxy } from "@intisy-ai/claude-code-proxy";
-import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema } from "@intisy-ai/core";
-import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/core-auth";
+import { createAccountMenu } from "@intisy-ai/basekit/loader/account-menu.js";
+import { modelEntries, providerRows } from "@intisy-ai/basekit/loader/provider-catalog.js";
+import { loaderConfigDir, loaderReposDir } from "@intisy-ai/basekit/loader/app-home.js";
+import { extraProviderRows } from "@intisy-ai/basekit/loader/provider-rows.js";
+import { getUpdater, setupPlugin } from "@intisy-ai/basekit/loader/updater.js";
+import { resolveModelMap, normalizeChain, profileTiers, anthropicProfile, initCoreProxy } from "@intisy-ai/claude-code-proxy";
+import { readActivity, createActivitySeam, setActivityContext, globalSettingsSchema } from "@intisy-ai/basekit";
+import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/basekit/auth";
 import * as caps from "./claude-caps.js";
 
 const profile = anthropicProfile();
@@ -46,7 +46,7 @@ const APP_HOME = join(homedir(), ".claude");
 // Mapping slots are DETECTED from the claude-code catalog (new families like
 // Fable appear automatically) + the Default slot. Re-read per render/key.
 function slots() {
-  return claudeTiers(configDir(), profile)
+  return profileTiers(configDir(), profile)
     .map((tier) => ({ key: tier, label: tier.charAt(0).toUpperCase() + tier.slice(1) }))
     .concat([{ key: "default", label: "Default" }]);
 }
@@ -133,7 +133,7 @@ function resolveHandlerPath(providerName: string): string | null {
 }
 
 // open the provider's account/quota menu natively in-tab (shared with the
-// OpenCode loader via core-loader's account-menu): accounts, login, and the
+// OpenCode loader via basekit/loader's account-menu): accounts, login, and the
 // combined/per-account quota all render inside the loader chrome.
 function openAccounts(providerName: string, tuiApi: AccountMenuApi) {
   const handler = resolveHandlerPath(providerName);
@@ -505,12 +505,12 @@ function handleKey(key: string | null, state: CustomTabContext, tuiApi: TuiApi):
 /** Registers this loader's Providers tab and everything this app can do, at TUI startup. */
 export default async function (tuiApi: TuiApi): Promise<void> {
   // This tab runs in the TUI's own process (spawned separately from the plugin's
-  // activate()), so it must init core-proxy's eager-loaded TeaVM module itself,
+  // activate()), so it must init basekit/proxy's eager-loaded TeaVM module itself,
   // before the render/handleKey below make their first sync routing-decision call.
   await initCoreProxy();
   tuiApi.registerTab({ id: "providers", label: "Providers", render, handleKey });
   setActivityContext({ entry: "tui" });
-  // Register the Claude-specific implementations of core-loader's generic
+  // Register the Claude-specific implementations of basekit/loader's generic
   // app-capability contract (session titles, foreign-plugin listing, plugin
   // marketplaces, MCP servers); see src/claude-caps.ts. Guarded: an
   // older/unbumped core-loader submodule may not carry registerCapabilities yet.
@@ -526,7 +526,7 @@ export default async function (tuiApi: TuiApi): Promise<void> {
       uninstallForeignPlugin: caps.uninstallForeignPlugin,
       mcpServers: caps.mcpServers,
       addMcpServer: caps.addMcpServer,
-      // Behaviour a plugin may not link for itself: core-auth's provider helpers, which core-loader
+      // Behaviour a plugin may not link for itself: basekit/auth's provider helpers, which core-loader
       // may not link either, being in the same layer. Linked once here rather than copied into every
       // provider bundle.
       services: [{ id: PROVIDER_SUPPORT, implementation: providerSupport() }],

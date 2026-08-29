@@ -4,8 +4,8 @@
 import { existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { loaderConfigDir, loaderReposDir } from "@intisy-ai/core-loader/dist/app-home.js";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { loaderConfigDir, loaderReposDir } from "@intisy-ai/basekit/loader/app-home.js";
 
 const APP_HOME = join(homedir(), ".claude");
 function configDir() { return loaderConfigDir(APP_HOME); }

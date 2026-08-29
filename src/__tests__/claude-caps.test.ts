@@ -104,7 +104,7 @@ test("parseEnabledPlugins: looks up version from installed_plugins.json", () => 
   expect(out[0].version).toBe("1.2.3");
 });
 
-// Absent rather than null: core-loader's ForeignPlugin declares `version?: string`, and every
+// Absent rather than null: basekit/loader's ForeignPlugin declares `version?: string`, and every
 // consumer reads it as `version || ""`, so the two were always interchangeable to a caller.
 test("parseEnabledPlugins: version is absent when not present in installed_plugins.json", () => {
   const settings = { enabledPlugins: { "ecc@intisy-ai/marketplace": true } };

@@ -1,12 +1,12 @@
 ﻿import { existsSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { maybeRunCli, deployLoaderCommands, loaderEntry } from "./commands.js";
-import { ensureNotifyDrainHook } from "@intisy-ai/core-loader/dist/notify.js";
-import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines, subdirEnvCmdLines, subdirEnvShLines } from "@intisy-ai/core-loader/dist/wrapper.js";
-import { getAppDescriptor, getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "@intisy-ai/core";
-import { ensureAppCli } from "@intisy-ai/core-loader/dist/ensure-app.js";
-import { setActivitySeam, emitPluginActivated } from "@intisy-ai/core-loader/dist/activity-seam.js";
+import { ensureNotifyDrainHook } from "@intisy-ai/basekit/loader/notify.js";
+import { getBinDir, runEarlyLaunchHooks, ensureOnPath } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { cliDispatchCmdLines, cliDispatchShLines, tuiCandidateResolveShLines, subdirEnvCmdLines, subdirEnvShLines } from "@intisy-ai/basekit/loader/wrapper.js";
+import { getAppDescriptor, getAppConfigDir, makeWriteLog, defineConfig, defineReadme, maybeRunReadmeCli, createActivitySeam } from "@intisy-ai/basekit";
+import { ensureAppCli } from "@intisy-ai/basekit/loader/ensure-app.js";
+import { setActivitySeam, emitPluginActivated } from "@intisy-ai/basekit/loader/activity-seam.js";
 
 // Slash-command invocations shell in as `node <this file> <action>`; handle them
 // first and exit, so command/config runs never go through plugin activation.
@@ -35,8 +35,8 @@ defineReadme({
     PLUGIN -->|earlyLaunch| UPDATER[plugin-updater]
     PLUGIN -->|install| CCBIN["cc / cc.cmd in ~/.local/bin"]
     PLUGIN -->|deployCommands| CMDS["/claude-code-loader-config, /plugins, /accounts"]
-    DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(core-auth providers)]
-    CCBIN -->|run cc| TUI["core-loader TUI (node tui.js)"]
+    DAEMON["proxy.js daemon :34567"] -->|route| PROVIDERS[(basekit auth providers)]
+    CCBIN -->|run cc| TUI["basekit loader TUI (node tui.js)"]
     CCBIN -->|"cc auth"| AUTH[auth-login.js (provider + account menu)]
     CCBIN -->|"ANTHROPIC_BASE_URL=:34567"| DAEMON
     TUI --> PROV[Providers tab (tui-extension.js)]`,
@@ -59,7 +59,7 @@ defineReadme({
   commands: [
     { name: "claude-code-loader-config", description: "View/change loader config (`claude-code-loader.json`): `list`, `get <key>`, `set <key> <value>`. 100% of the config is reachable here.", argumentHint: "list | get <key> | set <key> <value>" },
     { name: "plugins", description: "List the loader-managed plugins and their state (from `plugins.json`)." },
-    { name: "accounts", description: "List signed-in accounts across all providers (from the core-auth store)." },
+    { name: "accounts", description: "List signed-in accounts across all providers (from the basekit auth store)." },
   ],
   dependencies: [
     "core-loader",

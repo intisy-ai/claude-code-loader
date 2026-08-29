@@ -1,4 +1,4 @@
-// uniqueProviders() routes through core-loader's readDeployedProviders, which merges each
+// uniqueProviders() routes through basekit/loader's readDeployedProviders, which merges each
 // plugin's package.json-declared authProviders with the lanes materialized into THIS home's
 // cache/dynamic-providers.json (a map keyed by deployed plugin id; custom-auth's per-endpoint
 // providers land there). Isolated temp HUB_CONFIG_DIR, never the real ~/.claude.
@@ -8,7 +8,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { uniqueProviders } from "../tui-extension.js";
 import tuiExtension from "../tui-extension.js";
-import { claudeTiers, anthropicProfile } from "@intisy-ai/claude-code-proxy";
+import { profileTiers, anthropicProfile } from "@intisy-ai/claude-code-proxy";
 
 let homeDir;
 let prevConfigDir;
@@ -50,14 +50,14 @@ test("uniqueProviders: includes a provider materialized only via the home's dyna
   expect(names).toContain("my-endpoint");
 });
 
-test("the tab extension's default export awaits core-proxy init before returning, so a sync routing call right after it succeeds", async () => {
+test("the tab extension's default export awaits proxy init before returning, so a sync routing call right after it succeeds", async () => {
   const registered = [];
   const tuiApi = { registerTab: (tab) => registered.push(tab) };
 
   await tuiExtension(tuiApi);
 
   expect(registered.some((t) => t.id === "providers")).toBe(true);
-  expect(() => claudeTiers(homeDir, anthropicProfile())).not.toThrow();
+  expect(() => profileTiers(homeDir, anthropicProfile())).not.toThrow();
 });
 
 test("uniqueProviders: still lists a package.json-declared provider alongside the dynamic one", () => {
@@ -72,7 +72,7 @@ test("uniqueProviders: still lists a package.json-declared provider alongside th
 
 // A provider asks its context for this and never imports core-auth, so a loader that stopped
 // registering it would leave every provider unable to provide the capability it declared.
-test("the extension offers core-auth's provider helpers as a host service", async () => {
+test("the extension offers basekit/auth's provider helpers as a host service", async () => {
   const registered = {};
   const tuiApi = {
     registerTab: () => {},
