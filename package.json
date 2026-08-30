@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@intisy/bayonet": "^1.8.0",
-    "@intisy-ai/basekit": "^4.2.0",
+    "@intisy-ai/basekit": "^5.0.0",
     "@intisy-ai/claude-code-proxy": "^2.0.0"
   }
 }
